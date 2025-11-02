@@ -1,14 +1,8 @@
 name: Lint
 
 on:
-  push:
-    branches-ignore:
-      - main
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
+    types: [ opened, reopened, synchronize ]
 
 jobs:
   lint:
