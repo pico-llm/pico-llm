@@ -24,7 +24,7 @@ select = [
     "I", # Import related rules
     "C90", # Complexity rules
     "D", # Documentation rules
-    # "ANN", # Annotations rules
+    "ANN", # Annotations rules
     "TYP", # Type checking rules
     "N", # Naming rules
     "Q000", # Quotation style rules
