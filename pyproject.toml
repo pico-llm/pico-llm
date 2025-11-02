@@ -1,0 +1,43 @@
+[project]
+name = "pico-llm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.3.4",
+    "torch>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.3",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", # Pycodestyle errors
+    "F", # Pyflakes errors
+    "W", # Pycodestyle warnings
+    "UP", # Pyupgrade rules
+    "I", # Import related rules
+    "C90", # Complexity rules
+    "D", # Documentation rules
+    # "ANN", # Annotations rules
+    "TYP", # Type checking rules
+    "N", # Naming rules
+    "Q000", # Quotation style rules
+    "RET", # Return type rules
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
