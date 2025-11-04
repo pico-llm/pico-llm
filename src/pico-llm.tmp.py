@@ -18,77 +18,77 @@ from datasets import load_dataset
 ################################################################################
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Train multiple k-gram or sequence-based models on TinyStories and/or custom text files."
-    )
-    parser.add_argument(
-        "--input_files",
-        nargs="*",
-        default=None,
-        help="Optional list of text files to mix in as data sources. Each line is one example (up to block_size).",
-    )
-    parser.add_argument(
-        "--tinystories_weight",
-        type=float,
-        default=0.5,
-        help="Probability of sampling from TinyStories if present. Default=0.5. (set to 0.0 to skip TinyStories).",
-    )
-    parser.add_argument(
-        "--max_steps_per_epoch",
-        type=int,
-        default=None,
-        help="If set, each epoch ends after this many steps (for quick tests).",
-    )
-    parser.add_argument(
-        "--num_inner_mlp_layers",
-        type=int,
-        default=1,
-        help="Number of (Linear->SiLU) blocks inside the k-gram MLP. Default=1.",
-    )
-    parser.add_argument(
-        "--monosemantic_enabled",
-        action="store_true",
-        help="(DISABLED BY DEFAULT) If set, run the monosemantic analysis.",
-    )
-    parser.set_defaults(monosemantic_enabled=False)  # disable by default
-
-    # Additional hyperparams to mitigate slow k-gram
-    parser.add_argument(
-        "--kgram_k",
-        type=int,
-        default=3,
-        help="Sliding window size for k-gram MLP. Smaller can reduce memory usage. Default=3.",
-    )
-    parser.add_argument(
-        "--kgram_chunk_size", type=int, default=1, help="Process k-gram timesteps in micro-batches. Default=1."
-    )
-
-    parser.add_argument(
-        "--block_size", type=int, default=1024, help="Maximum sequence length for each example. Default=1024."
-    )
-
-    # New arguments:
-    parser.add_argument(
-        "--embed_size",
-        type=int,
-        default=1024,
-        help="Dimension of the embedding layer for LSTM, MLP, etc. Default=1024.",
-    )
-    parser.add_argument(
-        "--prompt", type=str, default="Once upon a", help="Prompt used for generation. Default='Once upon a'."
-    )
-
-    # Newly added device argument:
-    parser.add_argument(
-        "--device_id",
-        type=str,
-        default="cuda:0",
-        help="Torch device identifier (default='cuda:0'). If CUDA is unavailable, fallback to 'cpu'.",
-    )
-
-    args = parser.parse_args()
-    return args
+# def parse_args():
+#     parser = argparse.ArgumentParser(
+#         description="Train multiple k-gram or sequence-based models on TinyStories and/or custom text files."
+#     )
+#     parser.add_argument(
+#         "--input_files",
+#         nargs="*",
+#         default=None,
+#         help="Optional list of text files to mix in as data sources. Each line is one example (up to block_size).",
+#     )
+#     parser.add_argument(
+#         "--tinystories_weight",
+#         type=float,
+#         default=0.5,
+#         help="Probability of sampling from TinyStories if present. Default=0.5. (set to 0.0 to skip TinyStories).",
+#     )
+#     parser.add_argument(
+#         "--max_steps_per_epoch",
+#         type=int,
+#         default=None,
+#         help="If set, each epoch ends after this many steps (for quick tests).",
+#     )
+#     parser.add_argument(
+#         "--num_inner_mlp_layers",
+#         type=int,
+#         default=1,
+#         help="Number of (Linear->SiLU) blocks inside the k-gram MLP. Default=1.",
+#     )
+#     parser.add_argument(
+#         "--monosemantic_enabled",
+#         action="store_true",
+#         help="(DISABLED BY DEFAULT) If set, run the monosemantic analysis.",
+#     )
+#     parser.set_defaults(monosemantic_enabled=False)  # disable by default
+#
+#     # Additional hyperparams to mitigate slow k-gram
+#     parser.add_argument(
+#         "--kgram_k",
+#         type=int,
+#         default=3,
+#         help="Sliding window size for k-gram MLP. Smaller can reduce memory usage. Default=3.",
+#     )
+#     parser.add_argument(
+#         "--kgram_chunk_size", type=int, default=1, help="Process k-gram timesteps in micro-batches. Default=1."
+#     )
+#
+#     parser.add_argument(
+#         "--block_size", type=int, default=1024, help="Maximum sequence length for each example. Default=1024."
+#     )
+#
+#     # New arguments:
+#     parser.add_argument(
+#         "--embed_size",
+#         type=int,
+#         default=1024,
+#         help="Dimension of the embedding layer for LSTM, MLP, etc. Default=1024.",
+#     )
+#     parser.add_argument(
+#         "--prompt", type=str, default="Once upon a", help="Prompt used for generation. Default='Once upon a'."
+#     )
+#
+#     # Newly added device argument:
+#     parser.add_argument(
+#         "--device_id",
+#         type=str,
+#         default="cuda:0",
+#         help="Torch device identifier (default='cuda:0'). If CUDA is unavailable, fallback to 'cpu'.",
+#     )
+#
+#     args = parser.parse_args()
+#     return args
 
 
 ################################################################################
@@ -96,66 +96,66 @@ def parse_args():
 ################################################################################
 
 
-class MixedSequenceDataset(torch.utils.data.Dataset):
-    """We store two lists of entire token sequences:
-      - tinystories_seqs
-      - other_seqs
-    Each sequence is length <= block_size.
-
-    During __getitem__, we randomly pick from one list or the other with probability p_tiny.
-    Return that entire sequence as a 1D LongTensor.
-    """
-
-    def __init__(self, tinystories_seqs, other_seqs, p_tiny: float):
-        super().__init__()
-        self.tinystories_seqs = tinystories_seqs
-        self.other_seqs = other_seqs
-        self.p_tiny = p_tiny
-
-        self.has_tinystories = len(self.tinystories_seqs) > 0
-        self.has_other = len(self.other_seqs) > 0
-
-        self.total_length = len(self.tinystories_seqs) + len(self.other_seqs)
-        if self.total_length == 0:
-            raise ValueError("No data found! Both TinyStories and other sets are empty.")
-
-    def __len__(self):
-        return self.total_length
-
-    def __getitem__(self, idx):
-        r = random.random()
-        if self.has_tinystories and self.has_other:
-            if r < self.p_tiny:
-                i = random.randint(0, len(self.tinystories_seqs) - 1)
-                seq = self.tinystories_seqs[i]
-            else:
-                i = random.randint(0, len(self.other_seqs) - 1)
-                seq = self.other_seqs[i]
-        elif self.has_tinystories:
-            i = random.randint(0, len(self.tinystories_seqs) - 1)
-            seq = self.tinystories_seqs[i]
-        else:
-            i = random.randint(0, len(self.other_seqs) - 1)
-            seq = self.other_seqs[i]
-
-        return torch.tensor(seq, dtype=torch.long)
-
-
-def seq_collate_fn(batch):
-    """batch: list of 1D LongTensors of various lengths [<= block_size].
-    1) find max length
-    2) pad with zeros
-    3) shape => (max_len, batch_size)
-    """
-    max_len = max(len(seq) for seq in batch)
-    batch_size = len(batch)
-
-    padded = torch.zeros(max_len, batch_size, dtype=torch.long)
-    for i, seq in enumerate(batch):
-        seq_len = seq.size(0)
-        padded[:seq_len, i] = seq
-
-    return padded
+# class MixedSequenceDataset(torch.utils.data.Dataset):
+#     """We store two lists of entire token sequences:
+#       - tinystories_seqs
+#       - other_seqs
+#     Each sequence is length <= block_size.
+#
+#     During __getitem__, we randomly pick from one list or the other with probability p_tiny.
+#     Return that entire sequence as a 1D LongTensor.
+#     """
+#
+#     def __init__(self, tinystories_seqs, other_seqs, p_tiny: float):
+#         super().__init__()
+#         self.tinystories_seqs = tinystories_seqs
+#         self.other_seqs = other_seqs
+#         self.p_tiny = p_tiny
+#
+#         self.has_tinystories = len(self.tinystories_seqs) > 0
+#         self.has_other = len(self.other_seqs) > 0
+#
+#         self.total_length = len(self.tinystories_seqs) + len(self.other_seqs)
+#         if self.total_length == 0:
+#             raise ValueError("No data found! Both TinyStories and other sets are empty.")
+#
+#     def __len__(self):
+#         return self.total_length
+#
+#     def __getitem__(self, idx):
+#         r = random.random()
+#         if self.has_tinystories and self.has_other:
+#             if r < self.p_tiny:
+#                 i = random.randint(0, len(self.tinystories_seqs) - 1)
+#                 seq = self.tinystories_seqs[i]
+#             else:
+#                 i = random.randint(0, len(self.other_seqs) - 1)
+#                 seq = self.other_seqs[i]
+#         elif self.has_tinystories:
+#             i = random.randint(0, len(self.tinystories_seqs) - 1)
+#             seq = self.tinystories_seqs[i]
+#         else:
+#             i = random.randint(0, len(self.other_seqs) - 1)
+#             seq = self.other_seqs[i]
+#
+#         return torch.tensor(seq, dtype=torch.long)
+#
+#
+# def seq_collate_fn(batch):
+#     """batch: list of 1D LongTensors of various lengths [<= block_size].
+#     1) find max length
+#     2) pad with zeros
+#     3) shape => (max_len, batch_size)
+#     """
+#     max_len = max(len(seq) for seq in batch)
+#     batch_size = len(batch)
+#
+#     padded = torch.zeros(max_len, batch_size, dtype=torch.long)
+#     for i, seq in enumerate(batch):
+#         seq_len = seq.size(0)
+#         padded[:seq_len, i] = seq
+#
+#     return padded
 
 
 ################################################################################
@@ -242,26 +242,26 @@ class KGramMLPSeqModel(nn.Module):
 ################################################################################
 
 
-class LSTMSeqModel(nn.Module):
-    def __init__(self, vocab_size, embed_size=1024, hidden_size=1024):
-        super().__init__()
-        self.vocab_size = vocab_size
-        self.embed_size = embed_size
-        self.hidden_size = hidden_size
-
-        self.embedding = nn.Embedding(vocab_size, embed_size)
-        self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=False)
-        self.linear = nn.Linear(hidden_size, vocab_size)
-
-    def forward(self, tokens_seq):
-        """tokens_seq: (seq_len, batch)
-        => (seq_len, batch, vocab_size)
-        """
-        emb = self.embedding(tokens_seq)  # (seq_len, batch, embed)
-        self.lstm.flatten_parameters()
-        out, _ = self.lstm(emb)  # (seq_len, batch, hidden)
-        logits = self.linear(out)  # (seq_len, batch, vocab_size)
-        return logits
+# class LSTMSeqModel(nn.Module):
+#     def __init__(self, vocab_size, embed_size=1024, hidden_size=1024):
+#         super().__init__()
+#         self.vocab_size = vocab_size
+#         self.embed_size = embed_size
+#         self.hidden_size = hidden_size
+#
+#         self.embedding = nn.Embedding(vocab_size, embed_size)
+#         self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=False)
+#         self.linear = nn.Linear(hidden_size, vocab_size)
+#
+#     def forward(self, tokens_seq):
+#         """tokens_seq: (seq_len, batch)
+#         => (seq_len, batch, vocab_size)
+#         """
+#         emb = self.embedding(tokens_seq)  # (seq_len, batch, embed)
+#         self.lstm.flatten_parameters()
+#         out, _ = self.lstm(emb)  # (seq_len, batch, hidden)
+#         logits = self.linear(out)  # (seq_len, batch, vocab_size)
+#         return logits
 
 
 ################################################################################
