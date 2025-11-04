@@ -1,17 +1,17 @@
-# starter code by matus & o1-pro
-import argparse
-import random
-import time
+# # starter code by matus & o1-pro
+# import argparse
+# import random
+# import time
 
-import tiktoken
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
+# import tiktoken
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+# import torch.optim as optim
 
-# We do not import numpy or scikit-learn, so we implement a naive k-means in pure PyTorch.
-# If you prefer scikit-learn, you can adapt the code.
-from datasets import load_dataset
+# # We do not import numpy or scikit-learn, so we implement a naive k-means in pure PyTorch.
+# # If you prefer scikit-learn, you can adapt the code.
+# from datasets import load_dataset
 
 ################################################################################
 # 1. Command-line arg parsing
@@ -52,7 +52,7 @@ from datasets import load_dataset
 #         help="(DISABLED BY DEFAULT) If set, run the monosemantic analysis.",
 #     )
 #     parser.set_defaults(monosemantic_enabled=False)  # disable by default
-#
+
 #     # Additional hyperparams to mitigate slow k-gram
 #     parser.add_argument(
 #         "--kgram_k",
@@ -63,11 +63,11 @@ from datasets import load_dataset
 #     parser.add_argument(
 #         "--kgram_chunk_size", type=int, default=1, help="Process k-gram timesteps in micro-batches. Default=1."
 #     )
-#
+
 #     parser.add_argument(
 #         "--block_size", type=int, default=1024, help="Maximum sequence length for each example. Default=1024."
 #     )
-#
+
 #     # New arguments:
 #     parser.add_argument(
 #         "--embed_size",
@@ -78,7 +78,7 @@ from datasets import load_dataset
 #     parser.add_argument(
 #         "--prompt", type=str, default="Once upon a", help="Prompt used for generation. Default='Once upon a'."
 #     )
-#
+
 #     # Newly added device argument:
 #     parser.add_argument(
 #         "--device_id",
@@ -86,14 +86,14 @@ from datasets import load_dataset
 #         default="cuda:0",
 #         help="Torch device identifier (default='cuda:0'). If CUDA is unavailable, fallback to 'cpu'.",
 #     )
-#
+
 #     args = parser.parse_args()
 #     return args
 
 
-################################################################################
+###############################################################################
 # 2. Data handling: entire sequences up to block_size => (seq_len, batch)
-################################################################################
+###############################################################################
 
 
 # class MixedSequenceDataset(torch.utils.data.Dataset):
@@ -101,27 +101,27 @@ from datasets import load_dataset
 #       - tinystories_seqs
 #       - other_seqs
 #     Each sequence is length <= block_size.
-#
+
 #     During __getitem__, we randomly pick from one list or the other with probability p_tiny.
 #     Return that entire sequence as a 1D LongTensor.
 #     """
-#
+
 #     def __init__(self, tinystories_seqs, other_seqs, p_tiny: float):
 #         super().__init__()
 #         self.tinystories_seqs = tinystories_seqs
 #         self.other_seqs = other_seqs
 #         self.p_tiny = p_tiny
-#
+
 #         self.has_tinystories = len(self.tinystories_seqs) > 0
 #         self.has_other = len(self.other_seqs) > 0
-#
+
 #         self.total_length = len(self.tinystories_seqs) + len(self.other_seqs)
 #         if self.total_length == 0:
 #             raise ValueError("No data found! Both TinyStories and other sets are empty.")
-#
+
 #     def __len__(self):
 #         return self.total_length
-#
+
 #     def __getitem__(self, idx):
 #         r = random.random()
 #         if self.has_tinystories and self.has_other:
@@ -137,10 +137,10 @@ from datasets import load_dataset
 #         else:
 #             i = random.randint(0, len(self.other_seqs) - 1)
 #             seq = self.other_seqs[i]
-#
+
 #         return torch.tensor(seq, dtype=torch.long)
-#
-#
+
+
 # def seq_collate_fn(batch):
 #     """batch: list of 1D LongTensors of various lengths [<= block_size].
 #     1) find max length
@@ -149,12 +149,12 @@ from datasets import load_dataset
 #     """
 #     max_len = max(len(seq) for seq in batch)
 #     batch_size = len(batch)
-#
+
 #     padded = torch.zeros(max_len, batch_size, dtype=torch.long)
 #     for i, seq in enumerate(batch):
 #         seq_len = seq.size(0)
 #         padded[:seq_len, i] = seq
-#
+
 #     return padded
 
 
@@ -163,21 +163,21 @@ from datasets import load_dataset
 ################################################################################
 
 
-def compute_next_token_loss(logits, tokens):
-    """logits: (seq_len, batch, vocab_size)
-    tokens: (seq_len, batch)
-    Next-token prediction => we shift target by 1.
-    """
-    seq_len, batch_size, vocab_size = logits.shape
-    if seq_len < 2:
-        return torch.tensor(0.0, device=logits.device, requires_grad=True)
+# def compute_next_token_loss(logits, tokens):
+#     """logits: (seq_len, batch, vocab_size)
+#     tokens: (seq_len, batch)
+#     Next-token prediction => we shift target by 1.
+#     """
+#     seq_len, batch_size, vocab_size = logits.shape
+#     if seq_len < 2:
+#         return torch.tensor(0.0, device=logits.device, requires_grad=True)
 
-    preds = logits[:-1, :, :]  # (seq_len-1, batch, vocab_size)
-    gold = tokens[1:, :]  # (seq_len-1, batch)
+#     preds = logits[:-1, :, :]  # (seq_len-1, batch, vocab_size)
+#     gold = tokens[1:, :]  # (seq_len-1, batch)
 
-    preds = preds.reshape(-1, vocab_size)
-    gold = gold.reshape(-1)
-    return F.cross_entropy(preds, gold)
+#     preds = preds.reshape(-1, vocab_size)
+#     gold = gold.reshape(-1)
+#     return F.cross_entropy(preds, gold)
 
 
 class KGramMLPSeqModel(nn.Module):
@@ -248,11 +248,11 @@ class KGramMLPSeqModel(nn.Module):
 #         self.vocab_size = vocab_size
 #         self.embed_size = embed_size
 #         self.hidden_size = hidden_size
-#
+
 #         self.embedding = nn.Embedding(vocab_size, embed_size)
 #         self.lstm = nn.LSTM(embed_size, hidden_size, batch_first=False)
 #         self.linear = nn.Linear(hidden_size, vocab_size)
-#
+
 #     def forward(self, tokens_seq):
 #         """tokens_seq: (seq_len, batch)
 #         => (seq_len, batch, vocab_size)
@@ -478,89 +478,89 @@ def train_one_model(
 
 
 def main():
-    args = parse_args()
+    # args = parse_args()
 
-    # Additional local variables from arguments
-    k = args.kgram_k
-    chunk_size = args.kgram_chunk_size
+    # # Additional local variables from arguments
+    # k = args.kgram_k
+    # chunk_size = args.kgram_chunk_size
 
-    embed_size = args.embed_size
-    batch_size = 16
-    num_epochs = 3
-    learning_rate = 1e-3
+    # embed_size = args.embed_size
+    # batch_size = 16
+    # num_epochs = 3
+    # learning_rate = 1e-3
 
-    block_size = args.block_size
-    train_subset_size = 20000
-    log_interval_steps = 100
-    sample_interval_seconds = 30
+    # block_size = args.block_size
+    # train_subset_size = 20000
+    # log_interval_steps = 100
+    # sample_interval_seconds = 30
 
-    max_steps_per_epoch = args.max_steps_per_epoch
-    num_inner_layers = args.num_inner_mlp_layers
+    # max_steps_per_epoch = args.max_steps_per_epoch
+    # num_inner_layers = args.num_inner_mlp_layers
 
-    # NEW: pick device from args.device_id, fallback to cpu if needed
-    requested_device_id = args.device_id
-    if requested_device_id.startswith("cuda") and not torch.cuda.is_available():
-        print(f"Requested device '{requested_device_id}' but CUDA not available. Falling back to CPU.")
-        device = torch.device("cpu")
-    else:
-        device = torch.device(requested_device_id)
+    # # NEW: pick device from args.device_id, fallback to cpu if needed
+    # requested_device_id = args.device_id
+    # if requested_device_id.startswith("cuda") and not torch.cuda.is_available():
+    #     print(f"Requested device '{requested_device_id}' but CUDA not available. Falling back to CPU.")
+    #     device = torch.device("cpu")
+    # else:
+    #     device = torch.device(requested_device_id)
 
-    print(
-        f"Using device: {device}, block_size={block_size}, kgram_k={k}, chunk_size={chunk_size}, embed_size={embed_size}"
-    )
+    # print(
+    #     f"Using device: {device}, block_size={block_size}, kgram_k={k}, chunk_size={chunk_size}, embed_size={embed_size}"
+    # )
 
     ############################################################################
     # Data
     ############################################################################
-    tinystories_seqs = []
-    other_seqs = []
+    # tinystories_seqs = []
+    # other_seqs = []
 
-    if args.tinystories_weight > 0.0:
-        print(f"Loading TinyStories from huggingface with weight={args.tinystories_weight}...")
-        dataset = load_dataset("roneneldan/TinyStories", split="train")
-        dataset = dataset.select(range(train_subset_size))
-    else:
-        print("TinyStories weight=0 => skipping TinyStories.")
-        dataset = None
+    # if args.tinystories_weight > 0.0:
+    #     print(f"Loading TinyStories from huggingface with weight={args.tinystories_weight}...")
+    #     dataset = load_dataset("roneneldan/TinyStories", split="train")
+    #     dataset = dataset.select(range(train_subset_size))
+    # else:
+    #     print("TinyStories weight=0 => skipping TinyStories.")
+    #     dataset = None
 
-    enc = tiktoken.get_encoding("gpt2")
-    vocab_size = enc.n_vocab
-    print(f"Vocab size: {vocab_size}")
+    # enc = tiktoken.get_encoding("gpt2")
+    # vocab_size = enc.n_vocab
+    # print(f"Vocab size: {vocab_size}")
 
-    if dataset is not None:
-        for sample in dataset:
-            text = sample["text"]
-            tokens = enc.encode(text)
-            tokens = tokens[:block_size]
-            if len(tokens) > 0:
-                tinystories_seqs.append(tokens)
-        print(f"TinyStories sequences: {len(tinystories_seqs)}")
+    # if dataset is not None:
+    #     for sample in dataset:
+    #         text = sample["text"]
+    #         tokens = enc.encode(text)
+    #         tokens = tokens[:block_size]
+    #         if len(tokens) > 0:
+    #             tinystories_seqs.append(tokens)
+    #     print(f"TinyStories sequences: {len(tinystories_seqs)}")
 
-    if args.input_files:
-        for filepath in args.input_files:
-            print(f"Reading custom text file: {filepath}")
-            with open(filepath, encoding="utf-8") as f:
-                lines = f.readlines()
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                tokens = enc.encode(line)
-                tokens = tokens[:block_size]
-                if len(tokens) > 0:
-                    other_seqs.append(tokens)
-        print(f"Custom input files: {len(other_seqs)} sequences loaded.")
-    else:
-        print("No custom input files provided.")
+    # if args.input_files:
+    #     for filepath in args.input_files:
+    #         print(f"Reading custom text file: {filepath}")
+    #         with open(filepath, encoding="utf-8") as f:
+    #             lines = f.readlines()
+    #         for line in lines:
+    #             line = line.strip()
+    #             if not line:
+    #                 continue
+    #             tokens = enc.encode(line)
+    #             tokens = tokens[:block_size]
+    #             if len(tokens) > 0:
+    #                 other_seqs.append(tokens)
+    #     print(f"Custom input files: {len(other_seqs)} sequences loaded.")
+    # else:
+    #     print("No custom input files provided.")
 
-    p_tiny = args.tinystories_weight
-    if len(tinystories_seqs) == 0 and p_tiny > 0:
-        print("Warning: TinyStories is empty but tinystories_weight>0. That's okay, no data from it.")
-    combined_dataset = MixedSequenceDataset(tinystories_seqs=tinystories_seqs, other_seqs=other_seqs, p_tiny=p_tiny)
+    # p_tiny = args.tinystories_weight
+    # if len(tinystories_seqs) == 0 and p_tiny > 0:
+    #     print("Warning: TinyStories is empty but tinystories_weight>0. That's okay, no data from it.")
+    # combined_dataset = MixedSequenceDataset(tinystories_seqs=tinystories_seqs, other_seqs=other_seqs, p_tiny=p_tiny)
 
-    train_loader = torch.utils.data.DataLoader(
-        combined_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=seq_collate_fn
-    )
+    # train_loader = torch.utils.data.DataLoader(
+    #     combined_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=seq_collate_fn
+    # )
 
     ############################################################################
     # Models

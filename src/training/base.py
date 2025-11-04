@@ -11,6 +11,7 @@ from huggingface_hub import HfApi
 
 class BaseTrainer:
     """Base trainer class for model management and logging."""
+
     def __init__(
         self,
         model: nn.Module,
@@ -199,16 +200,18 @@ class BaseTrainer:
         self,
         path: str,
         model: nn.Module,
-        epoch: int,
-        **kwargs: dict,
+        step: int,
+        save_model_name: str = "model",
+        save_latest: bool = False,
     ) -> None:
         """Save the model and trainer state locally.
 
         Args:
             path (str): Directory path to save the model and trainer state.
             model (nn.Module): The model to be saved.
-            epoch (int): Current epoch number.
-            **kwargs (dict): Additional keyword arguments for saving.
+            step (int): Current training step.
+            save_model_name (str): Base name for the saved model file.
+            save_latest (bool): If True, overwrite the latest checkpoint instead of saving per step.
 
         Returns:
             None
@@ -216,23 +219,22 @@ class BaseTrainer:
         if not Path(path).exists():
             Path(path).mkdir(parents=True)
 
-        save_model_name = kwargs.get("save_model_name", "model")
-        if not kwargs.get("save_latest", False):
-            save_model_name = f"{save_model_name}_{epoch}.pt"
+        if not save_latest:
+            save_model_name = f"{save_model_name}_{step}.pt"
         else:
             save_model_name = f"{save_model_name}.pt"
         model_save_path = Path(path).joinpath(save_model_name)
         trainer_save_path = Path(path).joinpath("trainer.pt")
-        model.save(model_save_path)
+        torch.save(model.state_dict(), model_save_path)
         self.save(trainer_save_path)
 
-    def upload_model_to_hub(self, repo_id: str, path: str, epoch: int) -> None:
+    def upload_model_to_hub(self, repo_id: str, path: str, step: int) -> None:
         """Upload the model folder to Hugging Face Hub."""
         self.hf_api.upload_folder(
             repo_id=repo_id,
             repo_type="model",
             folder_path=path,
-            commit_message=f"Epoch: {epoch}",
+            commit_message=f"Step: {step}",
         )
 
     def clone_hub_repository_into_save_dir(self, repo_id: str, path: str) -> None:

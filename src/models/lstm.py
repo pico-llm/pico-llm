@@ -1,10 +1,12 @@
 """LSTM model implementation for text generation."""
+
 import torch
 import torch.nn as nn
 
 
 class LSTMSeqModel(nn.Module):
     """Implementation of an LSTM-based sequence model."""
+
     def __init__(self, vocab_size: int, embed_size: int = 1024, hidden_size: int = 1024) -> "LSTMSeqModel":
         """Initialize the LSTM-based sequence model.
 

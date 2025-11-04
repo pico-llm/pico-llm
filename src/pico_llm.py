@@ -1,4 +1,4 @@
-"""Main entry point for pico-llm training and evaluation."""
+"""Main entry point for pico-llm training."""
 
 import random
 
@@ -8,7 +8,7 @@ import torch
 
 import dataset
 import models
-import trainer
+import training
 import utils
 
 if __name__ == "__main__":
@@ -47,17 +47,23 @@ if __name__ == "__main__":
     print(f"Instantiated {args.model} / params: {total_params//10**6}M")
 
     # initialize trainer
-    trainer = trainer.Trainer(
+    trainer = training.init_trainer(model, args)
+
+    # train the model
+    trainer.train(
         model=model,
-        learning_rate=args.learning_rate,
-        optimizer_class=args.optimizer,
-        scheduler_class=args.scheduler,
-        device=device,
-        log_interval=args.log_interval,
-        save_interval=args.save_interval,
-        output_dir=args.output_dir,
+        train_dataloader=train_dataloader,
+        num_epochs=args.num_epochs,
+        save_dir=args.save_dir,
+        use_wandb=args.use_wandb,
+        wandb_entity=args.wandb_entity,
+        wandb_project=args.wandb_project,
+        wandb_name=args.wandb_name,
+        upload_model_to_hub=args.upload_model_to_hub,
+        repo_id=args.repo_id,
+        log_interval_steps=args.log_interval_steps,
+        save_interval_steps=args.save_interval_steps,
+        sample_interval_steps=args.sample_interval_steps,
+        save_model_name=args.save_model_name,
+        save_latest=args.save_latest,
     )
-    print(trainer)
-
-
-

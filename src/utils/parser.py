@@ -3,7 +3,7 @@
 import argparse
 
 
-def parse_args()-> argparse.Namespace:
+def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for training k-gram or sequence-based models.
 
     Returns:
@@ -37,20 +37,27 @@ def parse_args()-> argparse.Namespace:
         default="lstm",
         help="Model architecture to use. Default='lstm'.",
     )
+    parser.add_argument("--batch-size", type=int, default=16, help="Batch size for training. Default=16.")
+    parser.add_argument("--num-epochs", type=int, default=5, help="Number of training epochs. Default=5.")
+    parser.add_argument("--learning-rate", type=float, default=3e-4, help="Learning rate for optimizer. Default=3e-4.")
     parser.add_argument(
-        "--batch-size", type=int, default=16, help="Batch size for training. Default=16."
+        "--optimizer-class",
+        type=str,
+        default="adamw",
+        choices=["adamw", "adam", "sgd"],
+        help="Optimizer class to use. Default='adamw'.",
     )
     parser.add_argument(
-        "--num-epochs", type=int, default=5, help="Number of training epochs. Default=5."
-    )
-    parser.add_argument(
-        "--learning-rate", type=float, default=3e-4, help="Learning rate for optimizer. Default=3e-4."
+        "--scheduler-class",
+        type=str,
+        default="cosine",
+        choices=["cosine", "plateau", "exponential"],
+        help="Learning rate scheduler class to use. Default='cosine'.",
     )
     parser.add_argument(
         "--train-subset-size",
         type=int,
-        default=20_000,
-        help="Number of training sequences to use (for quick tests). Default=20000.",
+        help="Number of training sequences to use. Default=None (use all data).",
     )
     parser.add_argument(
         "--log-interval-steps",
@@ -59,16 +66,16 @@ def parse_args()-> argparse.Namespace:
         help="Log training loss every N steps. Default=100.",
     )
     parser.add_argument(
-        "--sample-interval-seconds",
+        "--sample-interval-steps",
         type=int,
-        default=30,
-        help="Generate sample text every N seconds during training. Default=30.",
+        default=100,
+        help="Generate sample text every N steps during training. Default=100.",
     )
     parser.add_argument(
-        "--max-steps-per-epoch",
+        "--save-interval-steps",
         type=int,
-        default=None,
-        help="If set, each epoch ends after this many steps (for quick tests).",
+        default=200,
+        help="Save model checkpoint every N steps. Default=200.",
     )
     parser.add_argument(
         "--num-inner-mlp-layers",
@@ -79,7 +86,7 @@ def parse_args()-> argparse.Namespace:
     parser.add_argument(
         "--monosemantic-enabled",
         action="store_true",
-        help="(DISABLED BY DEFAULT) If set, run the monosemantic analysis.",
+        help="If set, run the monosemantic analysis.",
     )
     parser.add_argument(
         "--kgram-k",
@@ -109,13 +116,38 @@ def parse_args()-> argparse.Namespace:
         "--prompt", type=str, default="Once upon a", help="Prompt used for generation. Default='Once upon a'."
     )
     parser.add_argument(
+        "--save-dir",
+        type=str,
+        default="./saved_models",
+        help="Directory to save model checkpoints. Default='./saved_models'.",
+    )
+    parser.add_argument(
+        "--save-model-name",
+        type=str,
+        default="model",
+        help="Base name for the saved model file. Default='model'.",
+    )
+    parser.add_argument(
+        "--save-latest",
+        action="store_true",
+        help="If set, overwrite the latest checkpoint instead of saving per step.",
+    )
+    parser.add_argument(
+        "--use-wandb",
+        action="store_true",
+        help="If set, use Weights & Biases for experiment tracking.",
+    )
+    parser.add_argument("--wandb-entity", type=str, default=None, help="Weights & Biases entity name.")
+    parser.add_argument("--wandb-project", type=str, default="pico-llm", help="Weights & Biases project name.")
+    parser.add_argument("--wandb-name", type=str, default=None, help="Weights & Biases run name.")
+    parser.add_argument("--upload-model-to-hub", action="store_true", help="If set, upload the model to Hugging Face Hub.")
+    parser.add_argument("--repo-id", type=str, default=None, help="Hugging Face Hub repository ID.")
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda:0",
         help="Torch device identifier (default='cuda:0'). If CUDA is unavailable, fallback to 'cpu'.",
     )
-    parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed for reproducibility. Default=42."
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility. Default=42.")
 
     return parser.parse_args()

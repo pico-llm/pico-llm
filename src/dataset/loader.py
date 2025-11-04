@@ -3,6 +3,7 @@
 import tiktoken
 import torch
 from datasets import load_dataset
+from tqdm.auto import tqdm
 
 from dataset.mixed_sequence_dataset import MixedSequenceDataset
 
@@ -47,13 +48,14 @@ def _load_tinystories(
     if tinystories_weight > 0.0:
         print(f"Loading TinyStories from huggingface with weight={tinystories_weight}...")
         dataset = load_dataset("roneneldan/TinyStories", split="train")
-        dataset = dataset.select(range(train_subset_size))
+        if train_subset_size is not None and isinstance(train_subset_size, int):
+            dataset = dataset.select(range(train_subset_size))
     else:
         print("TinyStories weight=0 => skipping TinyStories.")
         dataset = None
 
     if dataset is not None:
-        for sample in dataset:
+        for sample in tqdm(dataset, total=len(dataset), desc="Tokenizing TinyStories"):
             text = sample["text"]
             tokens = enc.encode(text)
             tokens = tokens[:block_size]
@@ -81,7 +83,7 @@ def _load_input_files(input_files: list[str] | None, block_size: int, enc: tikto
             print(f"Reading custom text file: {filepath}")
             with open(filepath, encoding="utf-8") as f:
                 lines = f.readlines()
-            for line in lines:
+            for line in tqdm(lines, total=len(lines), desc=f"Tokenizing {filepath}"):
                 line = line.strip()
                 if not line:
                     continue
