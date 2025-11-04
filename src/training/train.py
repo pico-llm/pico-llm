@@ -2,11 +2,14 @@
 
 import json
 
+import tiktoken
 import torch
 import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+
+import utils
 
 from .base import BaseTrainer
 
@@ -75,9 +78,10 @@ class Trainer(BaseTrainer):
         gold = gold.reshape(-1)
         return F.cross_entropy(preds, gold)
 
-    def train(
+    def train(  # noqa: C901
         self,
         model: nn.Module,
+        enc: tiktoken.Encoding,
         train_dataloader: DataLoader,
         num_epochs: int,
         save_dir: str = "./saved_models",
@@ -89,14 +93,19 @@ class Trainer(BaseTrainer):
         repo_id: str = None,
         log_interval_steps: int = 100,
         save_interval_steps: int = 200,
-        sample_interval_steps: int = 100,
         save_model_name: str = "model",
         save_latest: bool = False,
+        save_best: bool = True,
+        prompt: str = "Once upon",
+        max_new_tokens: int = 50,
+        top_p: float = 0.9,
+        monosemantic_analysis: bool = False,
     ) -> None:
         """Train the language model.
 
         Args:
             model (nn.Module): The language model to be trained.
+            enc (tiktoken.Encoding): The tokenizer encoding.
             train_dataloader (DataLoader): DataLoader for training data.
             num_epochs (int): Number of training epochs.
             save_dir (str): Directory to save model checkpoints.
@@ -108,9 +117,13 @@ class Trainer(BaseTrainer):
             repo_id (str): Hugging Face Hub repository ID.
             log_interval_steps (int): Steps interval for logging training loss.
             save_interval_steps (int): Steps interval for saving model checkpoints.
-            sample_interval_steps (int): Steps interval for generating sample text.
             save_model_name (str): Base name for the saved model file.
-            save_latest (bool): If True, overwrite the latest checkpoint instead of saving per step.
+            save_latest (bool): If True, overwrite the latest checkpoint instead of saving per save steps.
+            save_best (bool): If True, track and save the best model checkpoint based on training loss.
+            prompt (str): Prompt text for generating sample outputs during training.
+            max_new_tokens (int): Maximum number of new tokens to generate for sample outputs.
+            top_p (float): Nucleus sampling probability for generating sample outputs.
+            monosemantic_analysis (bool): Whether to perform monosemantic analysis during generation.
 
         Returns:
             None
@@ -134,6 +147,7 @@ class Trainer(BaseTrainer):
         steps_per_epoch = len(train_dataloader)
         total_steps = num_epochs * steps_per_epoch
         progress_bar = tqdm(total=total_steps)
+        best_train_loss = float("inf") if save_best else None
 
         # reset model to training mode
         model.train()
@@ -143,13 +157,16 @@ class Trainer(BaseTrainer):
 
         # training loop
         for epoch in range(num_epochs):
-            model.train()
             total_epoch_loss = 0.0
             epoch_step = 0
             for batch_idx, batch_tokens in enumerate(train_dataloader):
                 # track steps
                 epoch_step += 1
                 global_step += 1
+
+                # zero gradients
+                model.train()
+                self.optimizer.zero_grad()
 
                 # move batch to device
                 batch_tokens = batch_tokens.to(device)  # (seq_len, batch)
@@ -177,17 +194,57 @@ class Trainer(BaseTrainer):
 
                 # log metrics
                 if batch_idx % log_interval_steps == 0:
+                    # generate sample text using greedy decoding
+                    text_greedy, annotated_greedy = utils.generate(
+                        model,
+                        enc,
+                        prompt,
+                        max_new_tokens,
+                        top_p=None,
+                        monosemantic_analysis=monosemantic_analysis,
+                    )
+                    # generate sample text using nucleus sampling with top_p
+                    text_nucleus_top_p, annotated_nucleus_top_p = utils.generate(
+                        model,
+                        enc,
+                        prompt,
+                        max_new_tokens,
+                        top_p=top_p,
+                        monosemantic_analysis=monosemantic_analysis,
+                    )
+                    # generate sample text using nucleus sampling with top_p=1.0
+                    text_nucleus_top_p_1, annotated_nucleus_top_p_1 = utils.generate(
+                        model,
+                        enc,
+                        prompt,
+                        max_new_tokens,
+                        top_p=1.0,
+                        monosemantic_analysis=monosemantic_analysis,
+                    )
+
                     log_str = json.dumps(
                         {
                             "epoch": float(f"{epoch + (epoch_step / steps_per_epoch):.2f}"),
                             "step": global_step,
                             "loss": loss.item(),
                             "lr": self.optimizer.param_groups[0]["lr"],
+                            "text_greedy": text_greedy,
+                            "annotated_greedy": annotated_greedy,
+                            f"text_nucleus_{top_p}": text_nucleus_top_p,
+                            f"annotated_nucleus_{top_p}": annotated_nucleus_top_p,
+                            "text_nucleus_1.0": text_nucleus_top_p_1,
+                            "annotated_nucleus_1.0": annotated_nucleus_top_p_1,
                         }
                     )
                     progress_bar.write(log_str)
                     if self.wandb_writer is not None:
                         self.write_losses_to_wandb(log_dict)
+                        self.write_decoded_sentences_to_wandb(
+                            prompt,
+                            [text_greedy, text_nucleus_top_p, text_nucleus_top_p_1],
+                            [annotated_greedy, annotated_nucleus_top_p, annotated_nucleus_top_p_1],
+                            top_p=[None, top_p, 1.0],
+                        )
 
                 # update progress bar
                 progress_bar.set_postfix(
@@ -217,9 +274,25 @@ class Trainer(BaseTrainer):
                 }
             )
             progress_bar.write(log_str)
+            if self.wandb_writer is not None:
+                self.write_losses_to_wandb({"avg_loss": avg_epoch_loss})
+
+            # save best model checkpoint based on training loss
+            if save_best and best_train_loss is not None and avg_epoch_loss < best_train_loss:
+                best_train_loss = avg_epoch_loss
+                self.save_training_state_locally(
+                    save_dir, model, global_step, f"{save_model_name}_best", save_latest=True
+                )
+                if upload_model_to_hub:
+                    self.upload_model_to_hub(repo_id, save_dir, global_step)
 
             # step the scheduler
             self.scheduler.step()
 
         # close progress bar
         progress_bar.close()
+
+        # final model save
+        self.save_training_state_locally(save_dir, model, global_step, save_model_name, save_latest=save_latest)
+        if upload_model_to_hub:
+            self.upload_model_to_hub(repo_id, save_dir, global_step)

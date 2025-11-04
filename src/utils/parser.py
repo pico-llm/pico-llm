@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional list of text files to mix in as data sources. Each line is one example (up to block_size).",
     )
+    # TODO: Figure out why we need this, if we can set a better default, etc.
     parser.add_argument(
         "--tinystories-weight",
         type=float,
@@ -84,7 +85,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of (Linear->SiLU) blocks inside the k-gram MLP. Default=1.",
     )
     parser.add_argument(
-        "--monosemantic-enabled",
+        "--monosemantic-analysis",
         action="store_true",
         help="If set, run the monosemantic analysis.",
     )
@@ -113,7 +114,22 @@ def parse_args() -> argparse.Namespace:
         help="Dimension of the hidden layers for LSTM, MLP, etc. Default=1024.",
     )
     parser.add_argument(
-        "--prompt", type=str, default="Once upon a", help="Prompt used for generation. Default='Once upon a'."
+        "--prompt",
+        type=str,
+        default="Once upon a",
+        help="Prompt used for generation while training. Default='Once upon a'.",
+    )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=20,
+        help="Maximum number of new tokens to generate during training samples. Default=20.",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.9,
+        help="Nucleus sampling probability for generation during training. Default=0.9.",
     )
     parser.add_argument(
         "--save-dir",
@@ -133,6 +149,11 @@ def parse_args() -> argparse.Namespace:
         help="If set, overwrite the latest checkpoint instead of saving per step.",
     )
     parser.add_argument(
+        "--save-best",
+        action="store_true",
+        help="If set, track and save the best model checkpoint based on training loss.",
+    )
+    parser.add_argument(
         "--use-wandb",
         action="store_true",
         help="If set, use Weights & Biases for experiment tracking.",
@@ -140,7 +161,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wandb-entity", type=str, default=None, help="Weights & Biases entity name.")
     parser.add_argument("--wandb-project", type=str, default="pico-llm", help="Weights & Biases project name.")
     parser.add_argument("--wandb-name", type=str, default=None, help="Weights & Biases run name.")
-    parser.add_argument("--upload-model-to-hub", action="store_true", help="If set, upload the model to Hugging Face Hub.")
+    parser.add_argument(
+        "--upload-model-to-hub", action="store_true", help="If set, upload the model to Hugging Face Hub."
+    )
     parser.add_argument("--repo-id", type=str, default=None, help="Hugging Face Hub repository ID.")
     parser.add_argument(
         "--device",

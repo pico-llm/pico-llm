@@ -143,19 +143,24 @@ class BaseTrainer:
         if self.wandb_writer is not None:
             self.wandb_writer.log(losses)
 
-    def write_decoded_sentences_to_wandb(self, prompts: list[str], completions: list[str]) -> None:
+    def write_decoded_sentences_to_wandb(
+        self, prompt: str, completions: list[str], annotations: list[str], top_p: list[float | None]
+    ) -> None:
         """Log decoded sentences to Weights & Biases (wandb).
 
         Args:
-            prompts (list[str]): List of prompt strings.
-            completions (list[str]): List of completion strings.
+            prompt (str): The input prompt used for generation.
+            completions (list[str]): List of generated completions.
+            annotations (list[str]): List of annotated completions.
+            top_p (list[float | None]): List of top-p values used for generation.
 
         Returns:
             None
         """
-        columns = ["Prompt", "Completion"]
-        data = list(zip(prompts, completions))
-        table = wandb.Table(columns=columns, data=data)
+        columns = ["prompt", "completion", "annotation", "top_p"]
+        prompts = [prompt] * len(completions)
+        data = list(zip(prompts, completions, annotations, top_p))
+        table = wandb.Table(data=data, columns=columns)
         self.wandb_writer.log({"examples": table})
 
     def save(self, path: str | Path) -> None:
@@ -228,13 +233,23 @@ class BaseTrainer:
         torch.save(model.state_dict(), model_save_path)
         self.save(trainer_save_path)
 
-    def upload_model_to_hub(self, repo_id: str, path: str, step: int) -> None:
-        """Upload the model folder to Hugging Face Hub."""
+    def upload_model_to_hub(self, repo_id: str, path: str, step: int, commit_message: str | None) -> None:
+        """Upload the model folder to Hugging Face Hub.
+
+        Args:
+            repo_id (str): The identifier of the repository on Hugging Face Hub.
+            path (str): The local directory path of the model to be uploaded.
+            step (int): Current training step.
+            commit_message (str | None): Commit message for the upload.
+
+        Returns:
+            None
+        """
         self.hf_api.upload_folder(
             repo_id=repo_id,
             repo_type="model",
             folder_path=path,
-            commit_message=f"Step: {step}",
+            commit_message=f"Step: {step}" if commit_message is None else commit_message,
         )
 
     def clone_hub_repository_into_save_dir(self, repo_id: str, path: str) -> None:

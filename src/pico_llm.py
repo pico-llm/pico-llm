@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # initialize model
     model = models.init_model(args, vocab_size, device)
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"Instantiated {args.model} / params: {total_params//10**6}M")
+    print(f"Instantiated {args.model} / params: {total_params // 10**6}M")
 
     # initialize trainer
     trainer = training.init_trainer(model, args)
@@ -52,6 +52,7 @@ if __name__ == "__main__":
     # train the model
     trainer.train(
         model=model,
+        enc=enc,
         train_dataloader=train_dataloader,
         num_epochs=args.num_epochs,
         save_dir=args.save_dir,
@@ -63,7 +64,11 @@ if __name__ == "__main__":
         repo_id=args.repo_id,
         log_interval_steps=args.log_interval_steps,
         save_interval_steps=args.save_interval_steps,
-        sample_interval_steps=args.sample_interval_steps,
         save_model_name=args.save_model_name,
         save_latest=args.save_latest,
+        save_best=args.save_best,
+        prompt=args.prompt,
+        max_new_tokens=args.max_new_tokens,
+        top_p=args.top_p,
+        monosemantic_analysis=args.monosemantic_analysis,
     )
