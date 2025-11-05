@@ -106,7 +106,7 @@ class BaseTrainer:
         # set up warmup scheduler if specified
         warmup_ratio = kwargs.get("warmup_ratio", 0.0)
         if warmup_ratio > 0.0:
-            warmup_epochs = int(kwargs.get("num_epochs") * self.warmup_ratio)
+            warmup_epochs = int(kwargs.get("num_epochs") * warmup_ratio)
             warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
                 self.optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
             )
