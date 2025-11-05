@@ -1,14 +1,34 @@
 """Implementation of a k-gram MLP model for text generation."""
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F  # noqa: N812
+
 
 class KGramMLPSeqModel(nn.Module):
-    """For each position t in [0..seq_len-1], gather the last k tokens => one-hot => MLP => logits.
+    """Implementation of a k-gram MLP-based sequence model.
+
+    For each position t in [0..seq_len-1], gather the last k tokens => one-hot => MLP => logits.
     Return (seq_len, batch, vocab_size).
 
     Potentially very large memory usage for big vocab or seq_len. chunk_size helps mitigate overhead.
     """
 
-    def __init__(self, vocab_size, k=3, embed_size=1024, num_inner_layers=1, chunk_size=1):
+    def __init__(
+        self, vocab_size: int, k: int = 3, embed_size: int = 1024, num_inner_layers: int = 1, chunk_size: int = 1
+    ) -> "KGramMLPSeqModel":
+        """Initialize the k-gram MLP-based sequence model.
+
+        Args:
+            vocab_size (int): Size of the vocabulary.
+            k (int): Number of previous tokens to consider.
+            embed_size (int): Dimension of the embedding layer.
+            num_inner_layers (int): Number of inner layers in the MLP.
+            chunk_size (int): Number of time steps to process in one chunk.
+
+        Returns:
+            KGramMLPSeqModel: An instance of the k-gram MLP sequence model.
+        """
         super().__init__()
         self.k = k
         self.vocab_size = vocab_size
@@ -20,10 +40,14 @@ class KGramMLPSeqModel(nn.Module):
 
         self.net = None
 
-    def forward(self, tokens_seq):
-        """tokens_seq: (seq_len, batch)
-        return: (seq_len, batch, vocab_size)
-        We'll do a loop over time steps. chunk_size can reduce overhead.
+    def forward(self, tokens_seq: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the k-gram MLP model.
+
+        Args:
+            tokens_seq (torch.Tensor): Input token sequence of shape (seq_len, batch).
+
+        Returns:
+            torch.Tensor: Output logits of shape (seq_len, batch, vocab_size).
         """
         seq_len, batch_size = tokens_seq.shape
         outputs = []
@@ -54,5 +78,4 @@ class KGramMLPSeqModel(nn.Module):
             outputs.append(block_outputs)
             start = end
 
-        outputs = torch.cat(outputs, dim=0)  # (seq_len, batch, vocab_size)
-        return outputs
+        return torch.cat(outputs, dim=0)  # (seq_len, batch, vocab_size)
