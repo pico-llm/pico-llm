@@ -5,7 +5,7 @@ import torch
 from datasets import load_dataset
 from tqdm.auto import tqdm
 
-from dataset.mixed_sequence_dataset import MixedSequenceDataset
+from .mixed_sequence_dataset import MixedSequenceDataset
 
 
 def _seq_collate_fn(batch: list[torch.Tensor]) -> torch.Tensor:

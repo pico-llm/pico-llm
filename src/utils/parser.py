@@ -67,12 +67,6 @@ def parse_args() -> argparse.Namespace:
         help="Log training loss every N steps. Default=100.",
     )
     parser.add_argument(
-        "--sample-interval-steps",
-        type=int,
-        default=100,
-        help="Generate sample text every N steps during training. Default=100.",
-    )
-    parser.add_argument(
         "--save-interval-steps",
         type=int,
         default=200,

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 
-def nucleus_sampling(logits: torch.Tensor, p: float = 0.95) -> torch.Tensor:
+def nucleus_sampling(logits: torch.Tensor, p: float = 0.95) -> int:
     """Perform nucleus (top-p) sampling to select the next token.
 
     Args:
@@ -13,7 +13,7 @@ def nucleus_sampling(logits: torch.Tensor, p: float = 0.95) -> torch.Tensor:
         p (float): Cumulative probability threshold for nucleus sampling.
 
     Returns:
-        torch.Tensor: The selected token ID.
+        int: The selected token ID.
     """
     # TODO: Implement nucleus sampling logic here. For now, we return the argmax as a placeholder.
     return torch.argmax(logits).item()
@@ -64,6 +64,7 @@ def generate(
     Returns:
         tuple[str, str]: A tuple containing the final generated text and the annotated text.
     """
+    was_training = model.training
     model.eval()
     device = next(model.parameters()).device
     with torch.no_grad():
@@ -109,4 +110,5 @@ def generate(
         annotated_strs.append(annotated)
 
     annotated_text = "".join(annotated_strs)
+    model.train(was_training)
     return final_text, annotated_text
