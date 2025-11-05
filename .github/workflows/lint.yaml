@@ -16,7 +16,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Ruff
-        run: pip install -U ruff
+        run: pip install .[dev]
 
       - name: Run Ruff Lint
         run: |
