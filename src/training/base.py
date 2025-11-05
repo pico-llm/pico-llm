@@ -5,8 +5,9 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import wandb
 from huggingface_hub import HfApi
+
+import wandb
 
 
 class BaseTrainer:

@@ -15,8 +15,26 @@ def nucleus_sampling(logits: torch.Tensor, p: float = 0.95) -> int:
     Returns:
         int: The selected token ID.
     """
-    # TODO: Implement nucleus sampling logic here. For now, we return the argmax as a placeholder.
-    return torch.argmax(logits).item()
+    # convert logits to probabilities
+    probs = torch.softmax(logits, dim=-1)
+    # sort the probabilities and their corresponding token indices
+    sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+    # compute cumulative probabilities
+    cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+    # determine the cutoff index where cumulative probability exceeds p
+    cutoff_index = torch.searchsorted(cumulative_probs, p).item()
+    # keep tokens up to and including the cutoff index (nucleus)
+    # we add 1 because we want to include the token that crosses the threshold
+    nucleus_size = max(cutoff_index + 1, 1)
+    # extract the nucleus probabilities and indices
+    nucleus_probs = sorted_probs[:nucleus_size].clone()
+    nucleus_indices = sorted_indices[:nucleus_size]
+    # re-normalize the nucleus probabilities
+    nucleus_probs /= nucleus_probs.sum()
+    # sample from the nucleus
+    chosen_index = torch.multinomial(nucleus_probs, num_samples=1).item()
+    # return the corresponding token ID
+    return nucleus_indices[chosen_index].item()
 
 
 def monosemantic_analysis_for_token(token_id: int, model: nn.Module, enc: tiktoken.Encoding, top_n: int) -> list:
@@ -31,8 +49,31 @@ def monosemantic_analysis_for_token(token_id: int, model: nn.Module, enc: tiktok
     Returns:
         list: List of tuples containing (distance, token_id) of nearest neighbors.
     """
-    # TODO: Implement monosemantic analysis logic here. For now, we return an empty list as a placeholder.
-    return []
+    if not hasattr(model, "embedding"):
+        raise ValueError("Model does not support token embeddings for monosemantic analysis.")
+
+    embedding_layer = model.embedding
+    vocab_size = enc.n_vocab
+    device = next(model.parameters()).device
+    with torch.no_grad():
+        # get the embedding vector for the given token
+        token_tensor = torch.tensor([token_id], dtype=torch.long, device=device)
+        token_embedding = embedding_layer(token_tensor).squeeze(0)  # shape (embed_size,)
+        # normalize for cosine similarity
+        token_embedding = torch.nn.functional.normalize(token_embedding, dim=0)
+        # get all embeddings
+        all_token_ids = torch.arange(vocab_size, dtype=torch.long, device=device)
+        all_embeddings = embedding_layer(all_token_ids)  # shape (vocab_size, embed_size)
+        all_embeddings = torch.nn.functional.normalize(all_embeddings, dim=1)
+        # compute cosine similarities
+        similarities = torch.matmul(all_embeddings, token_embedding)  # shape (vocab_size,)
+        # get top_n nearest neighbors (excluding the token itself)
+        similarities[token_id] = -1.0  # exclude self
+        # get top_n indices
+        top_similarities, top_indices = torch.topk(similarities, k=top_n, largest=True)
+        # convert similarities to distances
+        top_distances = 1.0 - top_similarities
+        return [(top_distances[i].item(), top_indices[i].item()) for i in range(top_n)]
 
 
 def generate(
