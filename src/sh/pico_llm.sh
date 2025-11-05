@@ -64,7 +64,7 @@ DEVICE="cuda:0"             # Torch device (cuda:0, cpu, etc.)
 SEED=42                     # Random seed for reproducibility
 
 # Start building the command
-CMD="uv run pico_llm.py"
+CMD="uv run src/pico_llm.py"
 
 if [ ${#INPUT_FILES[@]} -gt 0 ]; then
     CMD="$CMD --input-files ${INPUT_FILES[@]}"
