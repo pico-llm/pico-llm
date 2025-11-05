@@ -141,7 +141,7 @@ CMD="$CMD --seed $SEED"
 # Delete previous model checkpoints if SAVE_DIR exists
 if [ -d "$SAVE_DIR" ]; then
     echo "Deleting previous model checkpoints in $SAVE_DIR..."
-    rm -rf "$SAVE_DIR/*"
+    rm -rf "${SAVE_DIR:?}/"*
 fi
 
 echo "============================================================================"
