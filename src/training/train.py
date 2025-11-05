@@ -240,6 +240,7 @@ class Trainer(BaseTrainer):
                     if self.wandb_writer is not None:
                         self.write_losses_to_wandb(log_dict)
                         self.write_decoded_sentences_to_wandb(
+                            global_step,
                             prompt,
                             [text_greedy, text_nucleus_top_p, text_nucleus_top_p_1],
                             [annotated_greedy, annotated_nucleus_top_p, annotated_nucleus_top_p_1],
