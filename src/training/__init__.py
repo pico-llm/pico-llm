@@ -18,7 +18,7 @@ def init_trainer(model: nn.Module, args: argparse.Namespace) -> Trainer:
         Trainer: An instance of the Trainer class.
     """
     trainer_kwargs = vars(args).copy()
-    trainer_kwargs.pop("model")
+    trainer_kwargs.pop("model", None)
     return Trainer(model=model, **trainer_kwargs)
 
 

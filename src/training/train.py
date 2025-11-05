@@ -193,7 +193,7 @@ class Trainer(BaseTrainer):
                 self.optimizer.step()
 
                 # log metrics
-                if batch_idx % log_interval_steps == 0:
+                if global_step % log_interval_steps == 0:
                     # generate sample text using greedy decoding
                     text_greedy, annotated_greedy = utils.generate(
                         model,

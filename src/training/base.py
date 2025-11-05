@@ -233,7 +233,7 @@ class BaseTrainer:
         torch.save(model.state_dict(), model_save_path)
         self.save(trainer_save_path)
 
-    def upload_model_to_hub(self, repo_id: str, path: str, step: int, commit_message: str | None) -> None:
+    def upload_model_to_hub(self, repo_id: str, path: str, step: int, commit_message: str | None = None) -> None:
         """Upload the model folder to Hugging Face Hub.
 
         Args:

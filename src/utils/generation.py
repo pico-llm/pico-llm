@@ -19,7 +19,7 @@ def nucleus_sampling(logits: torch.Tensor, p: float = 0.95) -> torch.Tensor:
     return torch.argmax(logits).item()
 
 
-def monosemantic_analysis(token_id: int, model: nn.Module, enc: tiktoken.Encoding, top_n: int) -> list:
+def monosemantic_analysis_for_token(token_id: int, model: nn.Module, enc: tiktoken.Encoding, top_n: int) -> list:
     """Perform monosemantic analysis for a given token.
 
     Args:
@@ -89,7 +89,7 @@ def generate(
 
             if monosemantic_analysis:  # perform monosemantic analysis
                 # get nearest neighbors
-                neighbors = monosemantic_analysis(chosen_token, model, enc, top_n)
+                neighbors = monosemantic_analysis_for_token(chosen_token, model, enc, top_n)
                 annotation_list.append((chosen_token, neighbors))
             else:
                 annotation_list.append((chosen_token, []))

@@ -32,7 +32,7 @@ def _seq_collate_fn(batch: list[torch.Tensor]) -> torch.Tensor:
 
 def _load_tinystories(
     tinystories_weight: float, train_subset_size: int, block_size: int, enc: tiktoken.Encoding
-) -> list[int]:
+) -> list[list[int]]:
     """Load TinyStories dataset from HuggingFace and tokenize sequences.
 
     Args:
@@ -42,7 +42,7 @@ def _load_tinystories(
         enc (tiktoken.Encoding): Tiktoken encoding instance.
 
     Returns:
-        list[int]: List of tokenized TinyStories sequences.
+        list[list[int]]: List of tokenized TinyStories sequences.
     """
     tinystories_seqs = list()
     if tinystories_weight > 0.0:
@@ -66,7 +66,7 @@ def _load_tinystories(
     return tinystories_seqs
 
 
-def _load_input_files(input_files: list[str] | None, block_size: int, enc: tiktoken.Encoding) -> list[int]:
+def _load_input_files(input_files: list[str] | None, block_size: int, enc: tiktoken.Encoding) -> list[list[int]]:
     """Load and tokenize sequences from custom input text files.
 
     Args:
@@ -75,7 +75,7 @@ def _load_input_files(input_files: list[str] | None, block_size: int, enc: tikto
         enc (tiktoken.Encoding): Tiktoken encoding instance.
 
     Returns:
-        list[int]: List of tokenized sequences from input files.
+        list[list[int]]: List of tokenized sequences from input files.
     """
     seqs = list()
     if input_files:
