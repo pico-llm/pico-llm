@@ -152,8 +152,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="If set, use Weights & Biases for experiment tracking.",
     )
-    parser.add_argument("--wandb-entity", type=str, default=None, help="Weights & Biases entity name.")
-    parser.add_argument("--wandb-project", type=str, default="pico-llm", help="Weights & Biases project name.")
+    parser.add_argument("--wandb-entity", type=str, default="pico-llm", help="Weights & Biases entity name.")
+    parser.add_argument("--wandb-project", type=str, default="training", help="Weights & Biases project name.")
     parser.add_argument("--wandb-name", type=str, default=None, help="Weights & Biases run name.")
     parser.add_argument(
         "--upload-model-to-hub", action="store_true", help="If set, upload the model to Hugging Face Hub."
