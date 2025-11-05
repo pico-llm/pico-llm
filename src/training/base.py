@@ -145,11 +145,12 @@ class BaseTrainer:
             self.wandb_writer.log(losses)
 
     def write_decoded_sentences_to_wandb(
-        self, prompt: str, completions: list[str], annotations: list[str], top_p: list[float | None]
+        self, step: int, prompt: str, completions: list[str], annotations: list[str], top_p: list[float | None]
     ) -> None:
         """Log decoded sentences to Weights & Biases (wandb).
 
         Args:
+            step (int): Current training step.
             prompt (str): The input prompt used for generation.
             completions (list[str]): List of generated completions.
             annotations (list[str]): List of annotated completions.
@@ -158,9 +159,10 @@ class BaseTrainer:
         Returns:
             None
         """
-        columns = ["prompt", "completion", "annotation", "top_p"]
+        columns = ["step", "prompt", "completion", "annotation", "top_p"]
+        steps = [step] * len(completions)
         prompts = [prompt] * len(completions)
-        data = list(zip(prompts, completions, annotations, top_p))
+        data = list(zip(steps, prompts, completions, annotations, top_p))
         table = wandb.Table(data=data, columns=columns)
         self.wandb_writer.log({"examples": table})
 
