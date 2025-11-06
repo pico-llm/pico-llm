@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
         "--chunk-size", type=int, default=1, help="Process k-gram timesteps in micro-batches. Default=1."
     )
     parser.add_argument(
-        "---num-inner-layers",
+        "--num-inner-layers",
         type=int,
         default=1,
         help="Number of (Linear->SiLU) blocks inside the k-gram MLP. Default=1.",
