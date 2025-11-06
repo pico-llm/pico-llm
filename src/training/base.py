@@ -35,6 +35,7 @@ class BaseTrainer:
         """
         self.hf_api = None
         self.wandb_writer = None
+        self.wandb_table = None
         self.optimizer = None
         self.scheduler = None
         self.optimizer_class = None
@@ -147,17 +148,18 @@ class BaseTrainer:
             allow_val_change=True,
         )
 
-    def write_losses_to_wandb(self, losses: dict) -> None:
+    def write_losses_to_wandb(self, step: int, losses: dict) -> None:
         """Log losses to Weights & Biases (wandb).
 
         Args:
+            step (int): Current training step.
             losses (dict): Dictionary of loss values to log.
 
         Returns:
             None
         """
         if self.wandb_writer is not None:
-            self.wandb_writer.log(losses)
+            self.wandb_writer.log(losses, step=step)
 
     def write_decoded_sentences_to_wandb(
         self, step: int, prompt: str, completions: list[str], annotations: list[str], top_p: list[float | None]
@@ -174,12 +176,13 @@ class BaseTrainer:
         Returns:
             None
         """
-        columns = ["step", "prompt", "completion", "annotation", "top_p"]
-        steps = [step] * len(completions)
-        prompts = [prompt] * len(completions)
-        data = list(zip(steps, prompts, completions, annotations, top_p))
-        table = wandb.Table(data=data, columns=columns)
-        self.wandb_writer.log({"examples": table})
+        if self.wandb_writer is not None:
+            if self.wandb_table is None:
+                columns = ["step", "top_p", "prompt", "completion", "annotation"]
+                self.wandb_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
+            for completion, annotation, p in zip(completions, annotations, top_p):
+                self.wandb_table.add_data(step, p, prompt, completion, annotation)
+            self.wandb_writer.log({"examples": self.wandb_table}, step=step)
 
     def save(self, path: str | Path) -> None:
         """Save the trainer state to a checkpoint.

@@ -238,7 +238,7 @@ class Trainer(BaseTrainer):
                     )
                     progress_bar.write(log_str)
                     if self.wandb_writer is not None:
-                        self.write_losses_to_wandb(log_dict)
+                        self.write_losses_to_wandb(global_step, log_dict)
                         self.write_decoded_sentences_to_wandb(
                             global_step,
                             prompt,
@@ -276,7 +276,7 @@ class Trainer(BaseTrainer):
             )
             progress_bar.write(log_str)
             if self.wandb_writer is not None:
-                self.write_losses_to_wandb({"avg_loss": avg_epoch_loss})
+                self.write_losses_to_wandb(global_step, {"avg_loss": avg_epoch_loss})
 
             # save best model checkpoint based on training loss
             if save_best and best_train_loss is not None and avg_epoch_loss < best_train_loss:
