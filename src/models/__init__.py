@@ -6,10 +6,12 @@ import inspect
 import torch
 import torch.nn as nn
 
+from .kgram_mlp import KGramMLPSeqModel
 from .lstm import LSTMSeqModel
 
 MODEL_REGISTRY = {
     "lstm": LSTMSeqModel,
+    "kgram_mlp": KGramMLPSeqModel,
 }
 
 

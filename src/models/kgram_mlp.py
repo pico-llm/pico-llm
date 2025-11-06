@@ -2,7 +2,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F  # noqa: N812
 
 
 class KGramMLPSeqModel(nn.Module):
@@ -12,6 +11,8 @@ class KGramMLPSeqModel(nn.Module):
     Return (seq_len, batch, vocab_size).
 
     Potentially very large memory usage for big vocab or seq_len. chunk_size helps mitigate overhead.
+
+    Note: We are going to override behavior by using Embedding layers instead of one-hot encodings.
     """
 
     def __init__(
@@ -36,9 +37,19 @@ class KGramMLPSeqModel(nn.Module):
         self.num_inner_layers = num_inner_layers
         self.chunk_size = chunk_size
 
-        # fill in
+        self.embedding = nn.Embedding(vocab_size, embed_size)
+        input_dim = k * embed_size
+        output_dim = vocab_size
 
-        self.net = None
+        layers = list()
+        layers.append(nn.Linear(input_dim, embed_size))
+        layers.append(nn.SiLU())
+        for _ in range(num_inner_layers):
+            layers.append(nn.Linear(embed_size, embed_size))
+            layers.append(nn.SiLU())
+
+        layers.append(nn.Linear(embed_size, output_dim))
+        self.net = nn.Sequential(*layers)
 
     def forward(self, tokens_seq: torch.Tensor) -> torch.Tensor:
         """Forward pass of the k-gram MLP model.
@@ -65,11 +76,14 @@ class KGramMLPSeqModel(nn.Module):
                     else:
                         context_ids = tokens_seq[t - self.k : t, b].tolist()
 
-                    context_oh = F.one_hot(
-                        torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device),
-                        num_classes=self.vocab_size,
-                    )
-                    context_flat = context_oh.flatten().float().unsqueeze(0)
+                    # context_oh = F.one_hot(
+                    #     torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device),
+                    #     num_classes=self.vocab_size,
+                    # )
+                    # context_flat = context_oh.flatten().float().unsqueeze(0)
+                    context_tensor = torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device)
+                    context_embeddings = self.embedding(context_tensor)  # (k, embed_size)
+                    context_flat = context_embeddings.flatten().unsqueeze(0)  # (1, k * embed_size)
                     logits_b = self.net(context_flat)  # (1, vocab_size)
                     batch_logits.append(logits_b)
                 block_outputs.append(torch.cat(batch_logits, dim=0).unsqueeze(0))  # (1, batch, vocab_size)
