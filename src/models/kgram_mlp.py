@@ -1,7 +1,10 @@
 """Implementation of a k-gram MLP model for text generation."""
 
+from typing import Literal
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F  # noqa: N812
 
 
 class KGramMLPSeqModel(nn.Module):
@@ -16,7 +19,13 @@ class KGramMLPSeqModel(nn.Module):
     """
 
     def __init__(
-        self, vocab_size: int, k: int = 3, embed_size: int = 1024, num_inner_layers: int = 1, chunk_size: int = 1
+        self,
+        vocab_size: int,
+        k: int = 3,
+        embed_size: int = 1024,
+        num_inner_layers: int = 1,
+        chunk_size: int = 1,
+        embedding_type: Literal["full", "scaled", "onehot"] = "full",
     ) -> "KGramMLPSeqModel":
         """Initialize the k-gram MLP-based sequence model.
 
@@ -26,6 +35,7 @@ class KGramMLPSeqModel(nn.Module):
             embed_size (int): Dimension of the embedding layer.
             num_inner_layers (int): Number of inner layers in the MLP.
             chunk_size (int): Number of time steps to process in one chunk.
+            embedding_type (str): Mode of input representation. Options are "full", "scaled", "onehot".
 
         Returns:
             KGramMLPSeqModel: An instance of the k-gram MLP sequence model.
@@ -36,11 +46,24 @@ class KGramMLPSeqModel(nn.Module):
         self.embed_size = embed_size
         self.num_inner_layers = num_inner_layers
         self.chunk_size = chunk_size
+        self.embedding_type = embedding_type
 
-        self.embedding = nn.Embedding(vocab_size, embed_size)
-        input_dim = k * embed_size
+        if self.embedding_type == "onehot":
+            self.embedding = None
+            input_dim = k * vocab_size
+        elif self.embedding_type == "full":
+            self.embedding = nn.Embedding(vocab_size, embed_size)
+            input_dim = k * embed_size
+        elif self.embedding_type == "scaled":
+            self.embedding = nn.Embedding(vocab_size, embed_size // k)
+            input_dim = k * (embed_size // k)
+        else:
+            raise NotImplementedError(f"Embedding type '{self.embedding_type}' is not implemented.")
+
+        # output dim is vocab size for logits
         output_dim = vocab_size
 
+        # build the MLP
         layers = list()
         layers.append(nn.Linear(input_dim, embed_size))
         layers.append(nn.SiLU())
@@ -76,14 +99,17 @@ class KGramMLPSeqModel(nn.Module):
                     else:
                         context_ids = tokens_seq[t - self.k : t, b].tolist()
 
-                    # context_oh = F.one_hot(
-                    #     torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device),
-                    #     num_classes=self.vocab_size,
-                    # )
-                    # context_flat = context_oh.flatten().float().unsqueeze(0)
+                    # convert context_ids to embeddings or one-hot
                     context_tensor = torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device)
-                    context_embeddings = self.embedding(context_tensor)  # (k, embed_size)
-                    context_flat = context_embeddings.flatten().unsqueeze(0)  # (1, k * embed_size)
+                    if self.embedding is None:
+                        # one-hot mode
+                        context_embeddings = F.one_hot(
+                            context_tensor, num_classes=self.vocab_size
+                        ).float()  # (k, vocab_size)
+                    else:
+                        # embedding mode
+                        context_embeddings = self.embedding(context_tensor)  # (k, embed_size)
+                    context_flat = context_embeddings.flatten().unsqueeze(0)  # (1, k * dim)
                     logits_b = self.net(context_flat)  # (1, vocab_size)
                     batch_logits.append(logits_b)
                 block_outputs.append(torch.cat(batch_logits, dim=0).unsqueeze(0))  # (1, batch, vocab_size)
