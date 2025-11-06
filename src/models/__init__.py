@@ -6,10 +6,12 @@ import inspect
 import torch
 import torch.nn as nn
 
+from .kgram_mlp import KGramMLPSeqModel
 from .lstm import LSTMSeqModel
 
 MODEL_REGISTRY = {
     "lstm": LSTMSeqModel,
+    "kgram_mlp": KGramMLPSeqModel,
 }
 
 
@@ -50,4 +52,4 @@ def init_model(args: argparse.Namespace, vocab_size: int, device: torch.device) 
     return model_cls(**init_args).to(device)
 
 
-__all__ = ["LSTMSeqModel", "init_model"]
+__all__ = ["init_model"]
