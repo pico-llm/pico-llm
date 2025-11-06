@@ -21,20 +21,21 @@ BLOCK_SIZE=1024             # Maximum sequence length
 # Training configuration
 
 BATCH_SIZE=16               # Batch size
-NUM_EPOCHS=5                # Number of training epochs
+NUM_EPOCHS=10                # Number of training epochs
 LEARNING_RATE=3e-4          # Learning rate
 OPTIMIZER_CLASS="adamw"     # Choices: adamw, adam, sgd
 SCHEDULER_CLASS="cosine"    # Choices: cosine, plateau, exponential
+WARMUP_RATIO=0.1            # Ratio of warmup steps to total training steps
 TRAIN_SUBSET_SIZE=""        # Number of training sequences (empty = use all data)
 
 # Logging and checkpointing
 
-LOG_INTERVAL_STEPS=100      # Log training loss every N steps
-SAVE_INTERVAL_STEPS=200     # Save model checkpoint every N steps
+LOG_INTERVAL_STEPS=500      # Log training loss every N steps
+SAVE_INTERVAL_STEPS=1000     # Save model checkpoint every N steps
 SAVE_DIR="./saved_models"   # Directory to save checkpoints
 SAVE_MODEL_NAME="model"     # Base name for saved model file
-SAVE_LATEST=false           # Overwrite latest checkpoint instead of saving per step
-SAVE_BEST=false             # Track and save best model based on training loss
+SAVE_LATEST=true           # Overwrite latest checkpoint instead of saving per step
+SAVE_BEST=true             # Track and save best model based on training loss
 
 # Generation configuration
 
@@ -44,7 +45,7 @@ TOP_P=0.9                   # Nucleus sampling probability
 
 # Monosemantic analysis
 
-MONOSEMANTIC_ANALYSIS=false # If true, run monosemantic analysis
+MONOSEMANTIC_ANALYSIS=true # If true, run monosemantic analysis
 
 # Weights & Biases configuration
 
@@ -79,6 +80,7 @@ CMD="$CMD --num-epochs $NUM_EPOCHS"
 CMD="$CMD --learning-rate $LEARNING_RATE"
 CMD="$CMD --optimizer-class $OPTIMIZER_CLASS"
 CMD="$CMD --scheduler-class $SCHEDULER_CLASS"
+CMD="$CMD --warmup-ratio $WARMUP_RATIO"
 
 # Add train subset size if specified
 if [ -n "$TRAIN_SUBSET_SIZE" ]; then
@@ -135,6 +137,12 @@ fi
 # Add system configuration
 CMD="$CMD --device $DEVICE"
 CMD="$CMD --seed $SEED"
+
+# Delete previous model checkpoints if SAVE_DIR exists
+if [ -d "$SAVE_DIR" ]; then
+    echo "Deleting previous model checkpoints in $SAVE_DIR..."
+    rm -rf "${SAVE_DIR:?}/"*
+fi
 
 echo "============================================================================"
 echo "Training Command:"

@@ -56,6 +56,12 @@ def parse_args() -> argparse.Namespace:
         help="Learning rate scheduler class to use. Default='cosine'.",
     )
     parser.add_argument(
+        "--warmup-ratio",
+        type=float,
+        default=0.1,
+        help="Ratio of warmup steps to total training steps for the scheduler. Default=0.1.",
+    )
+    parser.add_argument(
         "--train-subset-size",
         type=int,
         help="Number of training sequences to use. Default=None (use all data).",

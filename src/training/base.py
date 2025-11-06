@@ -80,26 +80,41 @@ class BaseTrainer:
             None
         """
         self.scheduler_class = scheduler_class
+
+        # Set up decreasing lr scheduler
         if self.scheduler_class == "plateau":
-            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            decreasing_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer,
                 mode="min",
                 factor=0.1,
                 patience=1,
             )
         elif self.scheduler_class == "cosine":
-            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            decreasing_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
-                T_max=kwargs.get("num_epochs", 10),
+                T_max=kwargs.get("num_epochs"),
                 eta_min=kwargs.get("eta_min", 1e-6),
             )
         elif self.scheduler_class == "exponential":
-            self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            decreasing_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
                 self.optimizer,
                 gamma=kwargs.get("gamma", 0.95),
             )
         else:
             raise NotImplementedError
+
+        # set up warmup scheduler if specified
+        warmup_ratio = kwargs.get("warmup_ratio", 0.0)
+        if warmup_ratio > 0.0:
+            warmup_epochs = int(kwargs.get("num_epochs") * warmup_ratio)
+            warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+                self.optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
+            )
+            self.scheduler = torch.optim.lr_scheduler.SequentialLR(
+                self.optimizer, schedulers=[warmup_scheduler, decreasing_lr_scheduler], milestones=[warmup_epochs]
+            )
+        else:
+            self.scheduler = decreasing_lr_scheduler
 
     def init_hf_api(self) -> None:
         """Initialize the Hugging Face API client."""
