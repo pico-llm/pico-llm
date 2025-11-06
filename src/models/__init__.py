@@ -52,4 +52,4 @@ def init_model(args: argparse.Namespace, vocab_size: int, device: torch.device) 
     return model_cls(**init_args).to(device)
 
 
-__all__ = ["LSTMSeqModel", "init_model"]
+__all__ = ["init_model"]
