@@ -157,7 +157,7 @@ def parse_args() -> argparse.Namespace:
         "--max-new-tokens",
         type=int,
         default=50,
-        help="Maximum number of new tokens to generate during training samples. Default=20.",
+        help="Maximum number of new tokens to generate during training samples. Default=50.",
     )
     parser.add_argument(
         "--top-p",
