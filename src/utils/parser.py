@@ -109,6 +109,8 @@ def parse_args() -> argparse.Namespace:
         default=0.1,
         help="Ratio of warmup steps to total training steps for the scheduler. Default=0.1.",
     )
+
+    # Logging and checkpointing
     parser.add_argument(
         "--log-interval-steps",
         type=int,
@@ -120,24 +122,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=200,
         help="Save model checkpoint every N steps. Default=200.",
-    )
-    parser.add_argument(
-        "--prompt",
-        type=str,
-        default="Once upon a",
-        help="Prompt used for generation while training. Default='Once upon a'.",
-    )
-    parser.add_argument(
-        "--max-new-tokens",
-        type=int,
-        default=20,
-        help="Maximum number of new tokens to generate during training samples. Default=20.",
-    )
-    parser.add_argument(
-        "--top-p",
-        type=float,
-        default=0.9,
-        help="Nucleus sampling probability for generation during training. Default=0.9.",
     )
     parser.add_argument(
         "--save-dir",
@@ -161,6 +145,28 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="If set, track and save the best model checkpoint based on training loss.",
     )
+
+    # Generation parameters for training samples
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="Once upon a",
+        help="Prompt used for generation while training. Default='Once upon a'.",
+    )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=50,
+        help="Maximum number of new tokens to generate during training samples. Default=20.",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.9,
+        help="Nucleus sampling probability for generation during training. Default=0.9.",
+    )
+
+    # Weights & Biases integration
     parser.add_argument(
         "--use-wandb",
         action="store_true",
@@ -169,17 +175,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wandb-entity", type=str, default="pico-llm", help="Weights & Biases entity name.")
     parser.add_argument("--wandb-project", type=str, default="training", help="Weights & Biases project name.")
     parser.add_argument("--wandb-name", type=str, default=None, help="Weights & Biases run name.")
+
+    # HuggingFace Hub integration
     parser.add_argument(
         "--upload-model-to-hub", action="store_true", help="If set, upload the model to Hugging Face Hub."
     )
     parser.add_argument("--repo-id", type=str, default=None, help="Hugging Face Hub repository ID.")
-
-    # Optional features
-    parser.add_argument(
-        "--monosemantic-analysis",
-        action="store_true",
-        help="If set, run the monosemantic analysis.",
-    )
 
     # System parameters
     parser.add_argument(
@@ -189,5 +190,12 @@ def parse_args() -> argparse.Namespace:
         help="Torch device identifier (default='cuda:0'). If CUDA is unavailable, fallback to 'cpu'.",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility. Default=42.")
+
+    # Optional features
+    parser.add_argument(
+        "--monosemantic-analysis",
+        action="store_true",
+        help="If set, run the monosemantic analysis.",
+    )
 
     return parser.parse_args()

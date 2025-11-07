@@ -1,0 +1,10 @@
+############### Run Log: 2025-11-06_14:37:24 ###############
+Current working directory: /scratch/ab12057/pico-llm
+Deleting previous model checkpoints in ./saved_models...
+============================================================================
+Training Command:
+============================================================================
+uv run src/pico_llm.py --tinystories-weight 0.5 --encoding-name gpt2 --model lstm --batch-size 16 --num-epochs 20 --learning-rate 3e-4 --optimizer-class adamw --scheduler-class cosine --warmup-ratio 0.1 --log-interval-steps 500 --save-interval-steps 1000 --num-inner-mlp-layers 1 --kgram-k 3 --kgram-chunk-size 1 --block-size 1024 --embed-size 1024 --hidden-size 1024 --prompt "Once upon a" --max-new-tokens 50 --top-p 0.9 --save-dir ./saved_models --save-model-name model --save-latest --save-best --monosemantic-analysis --use-wandb --wandb-entity pico-llm --wandb-project training --wandb-name lstm --upload-model-to-hub --repo-id pico-llm/lstm --device cuda:0 --seed 42
+============================================================================
+
+############### End Log: 2025-11-06_14:37:56 ###############

@@ -4,65 +4,66 @@ set -e
 
 # Data source configuration
 
-INPUT_FILES=()              # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
-TINYSTORIES_WEIGHT=0.5      # Probability of sampling from TinyStories (0.0 to skip)
-ENCODING_NAME="gpt2"        # Tiktoken encoding name
+INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
+TINYSTORIES_WEIGHT=0.5          # Probability of sampling from TinyStories (0.0 to skip)
+TRAIN_SUBSET_SIZE=""            # Number of training sequences (empty = use all data)
+BLOCK_SIZE=1024                 # Maximum sequence length
 
 # Model configuration
 
-MODEL="lstm"                # Choices: lstm, kgram_mlp, transformer
-EMBED_SIZE=1024             # Embedding dimension
-HIDDEN_SIZE=1024            # Hidden layer dimension
-NUM_INNER_MLP_LAYERS=1      # Number of (Linear->SiLU) blocks for k-gram MLP
-KGRAM_K=3                   # Sliding window size for k-gram MLP
-KGRAM_CHUNK_SIZE=1          # Process k-gram timesteps in micro-batches
-BLOCK_SIZE=1024             # Maximum sequence length
+ENCODING_NAME="gpt2"            # Tiktoken encoding name
+MODEL="lstm"                    # Choices: lstm, kgram_mlp, transformer
+EMBED_SIZE=1024                 # Embedding dimension
+HIDDEN_SIZE=1024                # Hidden layer dimension
+K=3                             # Sliding window size for k-gram MLP
+CHUNK_SIZE=1                    # Process k-gram timesteps in micro-batches
+NUM_INNER_LAYERS=1              # Number of (Linear->SiLU) blocks for k-gram MLP
+EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: full, scaled, onehot
 
 # Training configuration
 
-BATCH_SIZE=16               # Batch size
-NUM_EPOCHS=10                # Number of training epochs
-LEARNING_RATE=3e-4          # Learning rate
-OPTIMIZER_CLASS="adamw"     # Choices: adamw, adam, sgd
-SCHEDULER_CLASS="cosine"    # Choices: cosine, plateau, exponential
-WARMUP_RATIO=0.1            # Ratio of warmup steps to total training steps
-TRAIN_SUBSET_SIZE=""        # Number of training sequences (empty = use all data)
+BATCH_SIZE=16                   # Batch size
+NUM_EPOCHS=20                   # Number of training epochs
+LEARNING_RATE=3e-4              # Learning rate
+OPTIMIZER_CLASS="adamw"         # Choices: adamw, adam, sgd
+SCHEDULER_CLASS="cosine"        # Choices: cosine, plateau, exponential
+WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 
 # Logging and checkpointing
 
-LOG_INTERVAL_STEPS=500      # Log training loss every N steps
-SAVE_INTERVAL_STEPS=1000     # Save model checkpoint every N steps
-SAVE_DIR="./saved_models"   # Directory to save checkpoints
-SAVE_MODEL_NAME="model"     # Base name for saved model file
-SAVE_LATEST=true           # Overwrite latest checkpoint instead of saving per step
-SAVE_BEST=true             # Track and save best model based on training loss
+LOG_INTERVAL_STEPS=500          # Log training loss every N steps
+SAVE_INTERVAL_STEPS=1000        # Save model checkpoint every N steps
+SAVE_DIR="./saved_models"       # Directory to save checkpoints
+SAVE_MODEL_NAME="model"         # Base name for saved model file
+SAVE_LATEST=true                # Overwrite latest checkpoint instead of saving per step
+SAVE_BEST=true                  # Track and save best model based on training loss
 
 # Generation configuration
 
-PROMPT="Once upon a"        # Prompt for generation during training
-MAX_NEW_TOKENS=20           # Maximum tokens to generate during training samples
-TOP_P=0.9                   # Nucleus sampling probability
+PROMPT="Once upon a"            # Prompt for generation during training
+MAX_NEW_TOKENS=50               # Maximum tokens to generate during training samples
+TOP_P=0.9                       # Nucleus sampling probability
 
 # Monosemantic analysis
 
-MONOSEMANTIC_ANALYSIS=true # If true, run monosemantic analysis
+MONOSEMANTIC_ANALYSIS=true      # If true, run monosemantic analysis
 
 # Weights & Biases configuration
 
-USE_WANDB=true              # Enable W&B experiment tracking
-WANDB_ENTITY="pico-llm"     # W&B entity name (leave empty for default)
-WANDB_PROJECT="training"    # W&B project name
-WANDB_NAME="lstm-test"      # W&B run name (leave empty for auto-generated)
+USE_WANDB=true                  # Enable W&B experiment tracking
+WANDB_ENTITY="pico-llm"         # W&B entity name (leave empty for default)
+WANDB_PROJECT="training"        # W&B project name
+WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated)
 
 # Hugging Face Hub Configuration
 
 UPLOAD_MODEL_TO_HUB=true        # Upload model to Hugging Face Hub
-REPO_ID="pico-llm/lstm-test"    # Hugging Face Hub repository ID
+REPO_ID="pico-llm/lstm"         # Hugging Face Hub repository ID
 
 # System Configuration
 
-DEVICE="cuda:0"             # Torch device (cuda:0, cpu, etc.)
-SEED=42                     # Random seed for reproducibility
+DEVICE="cuda:0"                 # Torch device (cuda:0, cpu, etc.)
+SEED=42                         # Random seed for reproducibility
 
 # Start building the command
 CMD="uv run src/pico_llm.py"
@@ -89,9 +90,10 @@ fi
 
 CMD="$CMD --log-interval-steps $LOG_INTERVAL_STEPS"
 CMD="$CMD --save-interval-steps $SAVE_INTERVAL_STEPS"
-CMD="$CMD --num-inner-mlp-layers $NUM_INNER_MLP_LAYERS"
-CMD="$CMD --kgram-k $KGRAM_K"
-CMD="$CMD --kgram-chunk-size $KGRAM_CHUNK_SIZE"
+CMD="$CMD --num-inner-layers $NUM_INNER_LAYERS"
+CMD="$CMD --k $K"
+CMD="$CMD --chunk-size $CHUNK_SIZE"
+CMD="$CMD --embedding-type $EMBEDDING_TYPE"
 CMD="$CMD --block-size $BLOCK_SIZE"
 CMD="$CMD --embed-size $EMBED_SIZE"
 CMD="$CMD --hidden-size $HIDDEN_SIZE"
@@ -140,16 +142,8 @@ CMD="$CMD --seed $SEED"
 
 # Delete previous model checkpoints if SAVE_DIR exists
 if [ -d "$SAVE_DIR" ]; then
-    echo "Deleting previous model checkpoints in $SAVE_DIR..."
     rm -rf "${SAVE_DIR:?}/"*
 fi
-
-echo "============================================================================"
-echo "Training Command:"
-echo "============================================================================"
-echo "$CMD"
-echo "============================================================================"
-echo ""
 
 # Execute the command
 eval $CMD
