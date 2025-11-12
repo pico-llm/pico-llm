@@ -17,8 +17,20 @@ class RMSNorm(nn.Module):
             RMSNorm: An instance of RMSNorm.
         """
         super().__init__()
-        # TODO: Implement RMSNorm
-        pass
+        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        """Forward pass of RMSNorm.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Normalized tensor.
+        """
+        rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        return x / rms * self.scale
 
 
 class TransformerModel(nn.Module):
