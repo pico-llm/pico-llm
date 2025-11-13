@@ -8,10 +8,12 @@ import torch.nn as nn
 
 from .kgram_mlp import KGramMLPSeqModel
 from .lstm import LSTMSeqModel
+from .transformer import TransformerModel
 
 MODEL_REGISTRY = {
     "lstm": LSTMSeqModel,
     "kgram_mlp": KGramMLPSeqModel,
+    "transformer": TransformerModel,
 }
 
 
