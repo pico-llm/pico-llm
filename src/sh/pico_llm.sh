@@ -34,7 +34,6 @@ WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 LOG_INTERVAL_STEPS=500          # Log training loss every N steps
 SAVE_INTERVAL_STEPS=1000        # Save model checkpoint every N steps
 SAVE_DIR="./saved_models"       # Directory to save checkpoints
-SAVE_MODEL_NAME="model"         # Base name for saved model file
 SAVE_LATEST=true                # Overwrite latest checkpoint instead of saving per step
 SAVE_BEST=true                  # Track and save best model based on training loss
 
@@ -101,7 +100,6 @@ CMD="$CMD --prompt \"$PROMPT\""
 CMD="$CMD --max-new-tokens $MAX_NEW_TOKENS"
 CMD="$CMD --top-p $TOP_P"
 CMD="$CMD --save-dir $SAVE_DIR"
-CMD="$CMD --save-model-name $SAVE_MODEL_NAME"
 
 # Add boolean flags
 if [ "$SAVE_LATEST" = true ]; then

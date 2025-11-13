@@ -15,7 +15,6 @@ def init_trainer(model: nn.Module, train_loader: DataLoader, args: argparse.Name
         model (nn.Module): The model to be trained.
         train_loader (DataLoader): The training dataloader.
         args (argparse.Namespace): Parsed command-line arguments.
-        cls (str): Trainer class type.
 
     Returns:
         Trainer: An instance of the Trainer class.
