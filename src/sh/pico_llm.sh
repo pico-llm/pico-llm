@@ -22,6 +22,7 @@ EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: f
 
 # Training configuration
 
+CHECKPOINT=""
 BATCH_SIZE=16                   # Batch size
 NUM_EPOCHS=20                   # Number of training epochs
 LEARNING_RATE=3e-4              # Learning rate
@@ -85,6 +86,11 @@ CMD="$CMD --warmup-ratio $WARMUP_RATIO"
 # Add train subset size if specified
 if [ -n "$TRAIN_SUBSET_SIZE" ]; then
     CMD="$CMD --train-subset-size $TRAIN_SUBSET_SIZE"
+fi
+
+# Add checkpoint if specified
+if [ -n "$CHECKPOINT" ]; then
+    CMD="$CMD --checkpoint $CHECKPOINT"
 fi
 
 CMD="$CMD --log-interval-steps $LOG_INTERVAL_STEPS"
