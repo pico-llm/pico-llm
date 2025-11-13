@@ -24,7 +24,7 @@ EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: f
 
 # Training configuration
 
-CHECKPOINT="" # Path to model checkpoint to resume training (empty = start fresh)
+CHECKPOINT=""                   # Path to model checkpoint to resume training (empty = start fresh)
 BATCH_SIZE=16                   # Batch size
 NUM_EPOCHS=20                   # Number of training epochs
 LEARNING_RATE=3e-4              # Learning rate
@@ -34,12 +34,12 @@ WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 
 # Logging and checkpointing
 
-LOG_INTERVAL_STEPS=500          # Log training loss every N steps
-SAVE_INTERVAL_STEPS=1000        # Save model checkpoint every N steps
-SAVE_DIR="./saved_models"       # Directory to save checkpoints
-SAVE_LATEST=true                # Overwrite latest checkpoint instead of saving per step
-SAVE_BEST=true                  # Track and save best model based on training loss
-LOSS_METRIC_FOR_BEST_MODEL="val"  # Metric to use for best model: train, val
+LOG_INTERVAL_STEPS=500              # Log training loss every N steps
+SAVE_INTERVAL_STEPS=1000            # Save model checkpoint every N steps
+SAVE_DIR="./saved_models"           # Directory to save checkpoints
+SAVE_LATEST=true                    # Overwrite latest checkpoint instead of saving per step
+SAVE_BEST=true                      # Track and save best model based on training loss
+LOSS_METRIC_FOR_BEST_MODEL="val"    # Metric to use for best model: train, val
 
 # Generation configuration
 
