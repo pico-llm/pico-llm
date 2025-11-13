@@ -60,7 +60,7 @@ def compute_diversity(
     generated_texts = []
     with torch.no_grad():
         for prompt in prompts:
-            # Generate text using nucleus sampling
+            # generate text using nucleus sampling
             generated_text, _ = generate(
                 model,
                 enc,
@@ -69,7 +69,7 @@ def compute_diversity(
                 top_p=top_p,
                 monosemantic_analysis=False,
             )
-            # Extract only the generated part (remove prompt)
+            # extract only the generated part (remove prompt)
             generated_part = generated_text[len(prompt) :].strip()
             if generated_part:
                 generated_texts.append(generated_part)
