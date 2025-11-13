@@ -47,11 +47,10 @@ if __name__ == "__main__":
     print(f"Instantiated {args.model} / params: {total_params // 10**6}M")
 
     # initialize trainer
-    trainer = training.init_trainer(model, args)
+    trainer = training.init_trainer(model, train_dataloader, args)
 
     # train the model
     trainer.train(
-        model=model,
         enc=enc,
         train_dataloader=train_dataloader,
         num_epochs=args.num_epochs,
@@ -64,7 +63,6 @@ if __name__ == "__main__":
         repo_id=args.repo_id,
         log_interval_steps=args.log_interval_steps,
         save_interval_steps=args.save_interval_steps,
-        save_model_name=args.save_model_name,
         save_latest=args.save_latest,
         save_best=args.save_best,
         prompt=args.prompt,
