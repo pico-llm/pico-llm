@@ -6,8 +6,7 @@ import torch
 class FixedSequenceDataset(torch.utils.data.Dataset):
     """Dataset that provides fixed-index access to a list of sequences.
 
-    Unlike MixedSequenceDataset, this dataset uses fixed indices for deterministic
-    data access, making it suitable for train/val/test splits.
+    This dataset uses fixed indices for deterministic data access, making it suitable for train/val/test splits.
     """
 
     def __init__(self, sequences: list[list[int]]) -> "FixedSequenceDataset":
@@ -35,4 +34,3 @@ class FixedSequenceDataset(torch.utils.data.Dataset):
             torch.Tensor: 1D LongTensor of the token sequence.
         """
         return torch.tensor(self.sequences[idx], dtype=torch.long)
-
