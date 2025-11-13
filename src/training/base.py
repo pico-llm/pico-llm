@@ -172,7 +172,21 @@ class BaseTrainer(ModelHubMixin):
         )
         with open(save_directory / "training_config.json", "w") as f:
             json.dump(self.__dict__, f, indent=2, default=str)
-        self.model.save_pretrained(save_directory)
+
+        original_state_dict = self.model.state_dict()
+        cloned_state_dict = {k: v.clone().contiguous() for k, v in original_state_dict.items()}
+        original_state_dict_fn = self.model.state_dict
+
+        def _get_cloned_state_dict() -> dict:
+            """Get cloned state dict to ensure contiguous tensors."""
+            return cloned_state_dict
+
+        self.model.state_dict = _get_cloned_state_dict
+
+        try:
+            self.model.save_pretrained(save_directory)
+        finally:
+            self.model.state_dict = original_state_dict_fn
 
     @classmethod
     def _from_pretrained(
