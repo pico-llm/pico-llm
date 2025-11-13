@@ -6,9 +6,8 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from huggingface_hub import HfApi, ModelHubMixin, hf_hub_download
-
 import wandb
+from huggingface_hub import HfApi, ModelHubMixin, hf_hub_download
 
 
 class BaseTrainer(ModelHubMixin):
