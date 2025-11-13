@@ -44,6 +44,7 @@ class BaseTrainer(ModelHubMixin):
         self.scheduler_class = None
         self.model = model
         self.learning_rate = learning_rate
+        self._init_kwargs = kwargs.copy()
         self._init_optimizer(model, learning_rate, optimizer_class, **kwargs)
         self._init_scheduler(scheduler_class, **kwargs)
 
@@ -166,6 +167,7 @@ class BaseTrainer(ModelHubMixin):
                 "optimizer_class": self.optimizer_class,
                 "scheduler_class": self.scheduler_class,
                 "learning_rate": self.learning_rate,
+                "init_kwargs": self._init_kwargs,
             },
             save_directory / "trainer_state.pt",
         )
@@ -244,6 +246,8 @@ class BaseTrainer(ModelHubMixin):
 
         # Load trainer state
         trainer_state = torch.load(trainer_state_path)
+        init_kwargs = trainer_state.get("init_kwargs", {})
+        init_kwargs.update(kwargs)
 
         # Create new trainer instance
         trainer = cls(
@@ -251,14 +255,11 @@ class BaseTrainer(ModelHubMixin):
             learning_rate=trainer_state["learning_rate"],
             optimizer_class=trainer_state["optimizer_class"],
             scheduler_class=trainer_state["scheduler_class"],
-            **kwargs,
+            **init_kwargs,
         )
 
         trainer.optimizer.load_state_dict(trainer_state["optimizer"])
         trainer.scheduler.load_state_dict(trainer_state["scheduler"])
-        trainer.optimizer_class = trainer_state["optimizer_class"]
-        trainer.scheduler_class = trainer_state["scheduler_class"]
-        trainer.learning_rate = trainer_state["learning_rate"]
         return trainer
 
     def write_losses_to_wandb(self, step: int, losses: dict) -> None:
