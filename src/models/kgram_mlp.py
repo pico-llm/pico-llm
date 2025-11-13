@@ -5,9 +5,10 @@ from typing import Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
+from huggingface_hub import PyTorchModelHubMixin
 
 
-class KGramMLPSeqModel(nn.Module):
+class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
     """Implementation of a k-gram MLP-based sequence model.
 
     For each position t in [0..seq_len-1], gather the last k tokens => one-hot => MLP => logits.

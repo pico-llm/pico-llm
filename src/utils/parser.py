@@ -86,6 +86,9 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Training hyperparameters
+    parser.add_argument(
+        "--checkpoint", type=str, default=None, help="Path or model ID of a pre-trained checkpoint to load."
+    )
     parser.add_argument("--batch-size", type=int, default=16, help="Batch size for training. Default=16.")
     parser.add_argument("--num-epochs", type=int, default=5, help="Number of training epochs. Default=5.")
     parser.add_argument("--learning-rate", type=float, default=3e-4, help="Learning rate for optimizer. Default=3e-4.")
@@ -128,12 +131,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="./saved_models",
         help="Directory to save model checkpoints. Default='./saved_models'.",
-    )
-    parser.add_argument(
-        "--save-model-name",
-        type=str,
-        default="model",
-        help="Base name for the saved model file. Default='model'.",
     )
     parser.add_argument(
         "--save-latest",

@@ -1,6 +1,7 @@
 """Implementation of a Transformer model for text generation."""
 
 import torch.nn as nn
+from huggingface_hub import PyTorchModelHubMixin
 
 
 class RMSNorm(nn.Module):
@@ -21,7 +22,7 @@ class RMSNorm(nn.Module):
         pass
 
 
-class TransformerModel(nn.Module):
+class TransformerModel(nn.Module, PyTorchModelHubMixin):
     """Transformer model for text generation."""
 
     def __init__(self, vocab_size: int, d_model: int, n_heads: int, n_blocks: int) -> "TransformerModel":

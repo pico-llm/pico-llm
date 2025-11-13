@@ -2,9 +2,10 @@
 
 import torch
 import torch.nn as nn
+from huggingface_hub import PyTorchModelHubMixin
 
 
-class LSTMSeqModel(nn.Module):
+class LSTMSeqModel(nn.Module, PyTorchModelHubMixin):
     """Implementation of an LSTM-based sequence model."""
 
     def __init__(self, vocab_size: int, embed_size: int = 1024, hidden_size: int = 1024) -> "LSTMSeqModel":

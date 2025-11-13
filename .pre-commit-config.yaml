@@ -2,8 +2,8 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.7
     hooks:
-      - id: ruff
-        args: [ --fix, --exit-non-zero-on-fix ]
+      - id: ruff-check
+        args: [ --fix, --exit-non-zero-on-fix, --config=pyproject.toml ]
         types_or: [ python, pyi, jupyter ]
       - id: ruff-format
 
@@ -17,5 +17,3 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: debug-statements
-      - id: name-tests-test
-        args: [ '--pytest-test-first' ]
