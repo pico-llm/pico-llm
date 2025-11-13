@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from huggingface_hub import PyTorchModelHubMixin
+
 
 
 class RMSNorm(nn.Module):
@@ -111,7 +113,7 @@ class TransformerBlock(nn.Module):
         return x
 
 
-class TransformerModel(nn.Module):
+class TransformerModel(nn.Module, PyTorchModelHubMixin):
     """Transformer model for text generation."""
 
     def __init__(

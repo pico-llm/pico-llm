@@ -17,7 +17,7 @@ MODEL_REGISTRY = {
 }
 
 
-def get_model_class(model_name: str) -> type:
+def _get_model_class(model_name: str) -> type:
     """Retrieve the model class based on the model name.
 
     Args:
@@ -34,6 +34,21 @@ def get_model_class(model_name: str) -> type:
     raise ValueError(f"Model '{model_name}' is not recognized. Available models: {list(MODEL_REGISTRY.keys())}")
 
 
+def _construct_init_args(cls: type, args: argparse.Namespace) -> dict:
+    """Construct a dictionary of initialization arguments for the given class based on the provided argparse.Namespace.
+
+    Args:
+        cls (type): The class for which to construct initialization arguments.
+        args (argparse.Namespace): Parsed command-line arguments.
+
+    Returns:
+        dict: A dictionary of initialization arguments.
+    """
+    sig = inspect.signature(cls.__init__)
+    param_names = set(sig.parameters.keys())
+    return {k: v for k, v in vars(args).items() if k in param_names and k != "self"}
+
+
 def init_model(args: argparse.Namespace, vocab_size: int, device: torch.device) -> nn.Module:
     """Initialize the model based on the provided arguments.
 
@@ -45,11 +60,11 @@ def init_model(args: argparse.Namespace, vocab_size: int, device: torch.device) 
     Returns:
         nn.Module: Instantiated model.
     """
-    model_cls = get_model_class(args.model)
+    model_cls = _get_model_class(args.model)
     print(f"Using model: {args.model}, cls: {model_cls}")
-    sig = inspect.signature(model_cls.__init__)
-    param_names = set(sig.parameters.keys())
-    init_args = {k: v for k, v in vars(args).items() if k in param_names and k != "self"}
+    if args.checkpoint is not None:
+        return model_cls.from_pretrained(args.checkpoint).to(device)
+    init_args = _construct_init_args(model_cls, args)
     init_args.setdefault("vocab_size", vocab_size)
     return model_cls(**init_args).to(device)
 

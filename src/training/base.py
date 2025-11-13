@@ -1,16 +1,16 @@
 """Base trainer class for model management and logging."""
 
+import json
 import os
 from pathlib import Path
 
 import torch
 import torch.nn as nn
-from huggingface_hub import HfApi
-
 import wandb
+from huggingface_hub import HfApi, ModelHubMixin, hf_hub_download
 
 
-class BaseTrainer:
+class BaseTrainer(ModelHubMixin):
     """Base trainer class for model management and logging."""
 
     def __init__(
@@ -33,6 +33,8 @@ class BaseTrainer:
         Returns:
             BaseTrainer: An instance of the BaseTrainer class.
         """
+        super().__init__()
+
         self.hf_api = None
         self.wandb_writer = None
         self.wandb_table = None
@@ -40,15 +42,18 @@ class BaseTrainer:
         self.scheduler = None
         self.optimizer_class = None
         self.scheduler_class = None
+        self.model = model
         self.learning_rate = learning_rate
-        self.init_optimizer(model, learning_rate, optimizer_class)
-        self.init_scheduler(scheduler_class, **kwargs)
+        self._init_kwargs = kwargs.copy()
+        self._init_optimizer(model, learning_rate, optimizer_class, **kwargs)
+        self._init_scheduler(scheduler_class, **kwargs)
 
-    def init_optimizer(
+    def _init_optimizer(
         self,
         model: nn.Module,
         learning_rate: float,
         optimizer_class: str,
+        **kwargs: dict,
     ) -> None:
         """Initialize the optimizer.
 
@@ -56,13 +61,16 @@ class BaseTrainer:
             model (nn.Module): The model to be optimized.
             learning_rate (float): Learning rate for the optimizer.
             optimizer_class (str): The optimizer class to use.
+            **kwargs (dict): Additional keyword arguments for optimizer initialization.
 
         Returns:
             None
         """
         self.optimizer_class = optimizer_class
         if self.optimizer_class == "adamw":
-            self.optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+            self.optimizer = torch.optim.AdamW(
+                model.parameters(), lr=learning_rate, weight_decay=kwargs.get("weight_decay", 0.05)
+            )
         elif self.optimizer_class == "adam":
             self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         elif self.optimizer_class == "sgd":
@@ -70,7 +78,7 @@ class BaseTrainer:
         else:
             raise NotImplementedError
 
-    def init_scheduler(self, scheduler_class: str, **kwargs: dict) -> None:
+    def _init_scheduler(self, scheduler_class: str, **kwargs: dict) -> None:
         """Initialize the learning rate scheduler.
 
         Args:
@@ -82,19 +90,11 @@ class BaseTrainer:
         """
         self.scheduler_class = scheduler_class
 
-        # Set up decreasing lr scheduler
-        if self.scheduler_class == "plateau":
-            decreasing_lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer,
-                mode="min",
-                factor=0.1,
-                patience=1,
-            )
-        elif self.scheduler_class == "cosine":
+        if self.scheduler_class == "cosine":
             decreasing_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
-                T_max=kwargs.get("num_epochs"),
-                eta_min=kwargs.get("eta_min", 1e-6),
+                T_max=kwargs.get("num_steps"),
+                eta_min=kwargs.get("eta_min", 1e-8),
             )
         elif self.scheduler_class == "exponential":
             decreasing_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
@@ -107,12 +107,16 @@ class BaseTrainer:
         # set up warmup scheduler if specified
         warmup_ratio = kwargs.get("warmup_ratio", 0.0)
         if warmup_ratio > 0.0:
-            warmup_epochs = int(kwargs.get("num_epochs") * warmup_ratio)
+            period = kwargs.get("num_steps")
+            warmup_period = int(period * warmup_ratio)
+            print(f"Using warmup for {warmup_period} steps out of {period} total steps.")
             warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-                self.optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
+                self.optimizer, start_factor=0.01, end_factor=1.0, total_iters=warmup_period
             )
             self.scheduler = torch.optim.lr_scheduler.SequentialLR(
-                self.optimizer, schedulers=[warmup_scheduler, decreasing_lr_scheduler], milestones=[warmup_epochs]
+                self.optimizer,
+                schedulers=[warmup_scheduler, decreasing_lr_scheduler],
+                milestones=[warmup_period],
             )
         else:
             self.scheduler = decreasing_lr_scheduler
@@ -147,6 +151,116 @@ class BaseTrainer:
             config=config,
             allow_val_change=True,
         )
+
+    def _save_pretrained(self, save_directory: Path) -> None:
+        """Save trainer state to directory.
+
+        This method is called by save_pretrained() from ModelHubMixin.
+
+        Args:
+            save_directory (Path): Directory to save trainer state.
+        """
+        torch.save(
+            {
+                "optimizer": self.optimizer.state_dict(),
+                "scheduler": self.scheduler.state_dict(),
+                "optimizer_class": self.optimizer_class,
+                "scheduler_class": self.scheduler_class,
+                "learning_rate": self.learning_rate,
+                "init_kwargs": self._init_kwargs,
+            },
+            save_directory / "trainer_state.pt",
+        )
+        with open(save_directory / "training_config.json", "w") as f:
+            json.dump(self.__dict__, f, indent=2, default=str)
+
+        original_state_dict = self.model.state_dict()
+        cloned_state_dict = {k: v.clone().contiguous() for k, v in original_state_dict.items()}
+        original_state_dict_fn = self.model.state_dict
+
+        def _get_cloned_state_dict() -> dict:
+            """Get cloned state dict to ensure contiguous tensors."""
+            return cloned_state_dict
+
+        self.model.state_dict = _get_cloned_state_dict
+
+        try:
+            self.model.save_pretrained(save_directory)
+        finally:
+            self.model.state_dict = original_state_dict_fn
+
+    @classmethod
+    def _from_pretrained(
+        cls,
+        *,
+        model_id: str,
+        model: nn.Module,
+        revision: str | None = None,
+        cache_dir: str | Path | None = None,
+        force_download: bool = False,
+        proxies: dict | None = None,
+        local_files_only: bool = False,
+        token: str | bool | None = None,
+        **kwargs: dict,
+    ) -> "BaseTrainer":
+        """Load trainer from pretrained.
+
+        This method is called by from_pretrained() from ModelHubMixin.
+
+        Args:
+            model_id (str): Model ID on HuggingFace Hub.
+            model (nn.Module): The model instance.
+            revision (str | None): Specific model version to use.
+            cache_dir (str | Path | None): Directory to cache the downloaded model.
+            force_download (bool): Whether to force re-download of model files.
+            proxies (dict | None): Proxy settings for downloading.
+            local_files_only (bool): Whether to only use local files.
+            token (str | bool | None): Authentication token for private models.
+            **kwargs: Additional arguments.
+
+        Returns:
+            BaseTrainer: Loaded trainer instance.
+        """
+        # Check if model_id is a local path
+        local_path = Path(model_id)
+        if local_path.exists() and local_path.is_dir():
+            # Load from local directory
+            trainer_state_path = local_path / "trainer_state.pt"
+            if not trainer_state_path.exists():
+                raise FileNotFoundError(
+                    f"trainer_state.pt not found in {local_path}. "
+                    "Make sure the directory contains a saved trainer state."
+                )
+        else:
+            # Download trainer state from HuggingFace Hub
+            trainer_state_path = hf_hub_download(
+                repo_id=model_id,
+                filename="trainer_state.pt",
+                revision=revision,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                proxies=proxies,
+                local_files_only=local_files_only,
+                token=token,
+            )
+
+        # Load trainer state
+        trainer_state = torch.load(trainer_state_path)
+        init_kwargs = trainer_state.get("init_kwargs", {})
+        init_kwargs.update(kwargs)
+
+        # Create new trainer instance
+        trainer = cls(
+            model=model,
+            learning_rate=trainer_state["learning_rate"],
+            optimizer_class=trainer_state["optimizer_class"],
+            scheduler_class=trainer_state["scheduler_class"],
+            **init_kwargs,
+        )
+
+        trainer.optimizer.load_state_dict(trainer_state["optimizer"])
+        trainer.scheduler.load_state_dict(trainer_state["scheduler"])
+        return trainer
 
     def write_losses_to_wandb(self, step: int, losses: dict) -> None:
         """Log losses to Weights & Biases (wandb).
@@ -183,102 +297,3 @@ class BaseTrainer:
             for completion, annotation, p in zip(completions, annotations, top_p):
                 self.wandb_table.add_data(step, p, prompt, completion, annotation)
             self.wandb_writer.log({"examples": self.wandb_table}, step=step)
-
-    def save(self, path: str | Path) -> None:
-        """Save the trainer state to a checkpoint.
-
-        Args:
-            path (str | Path): Path to save the checkpoint.
-
-        Returns:
-            None
-        """
-        if not Path(path).parent.exists():
-            raise FileNotFoundError
-        torch.save(
-            {
-                "optimizer": self.optimizer.state_dict(),
-                "scheduler": self.scheduler.state_dict(),
-                "optimizer_class": self.optimizer_class,
-                "scheduler_class": self.scheduler_class,
-            },
-            path,
-        )
-
-    def load(self, path: str | Path) -> None:
-        """Load the trainer state from a checkpoint.
-
-        Args:
-            path (str | Path): Path to the checkpoint file.
-
-        Returns:
-            None
-        """
-        if not Path(path).exists():
-            raise FileNotFoundError
-        checkpoint = torch.load(path)
-        self.optimizer.load_state_dict(checkpoint["optimizer"])
-        self.scheduler.load_state_dict(checkpoint["scheduler"])
-        self.optimizer_class = checkpoint["optimizer_class"]
-        self.scheduler_class = checkpoint["scheduler_class"]
-
-    def save_training_state_locally(
-        self,
-        path: str,
-        model: nn.Module,
-        step: int,
-        save_model_name: str = "model",
-        save_latest: bool = False,
-    ) -> None:
-        """Save the model and trainer state locally.
-
-        Args:
-            path (str): Directory path to save the model and trainer state.
-            model (nn.Module): The model to be saved.
-            step (int): Current training step.
-            save_model_name (str): Base name for the saved model file.
-            save_latest (bool): If True, overwrite the latest checkpoint instead of saving per step.
-
-        Returns:
-            None
-        """
-        if not Path(path).exists():
-            Path(path).mkdir(parents=True)
-
-        if not save_latest:
-            save_model_name = f"{save_model_name}_{step}.pt"
-        else:
-            save_model_name = f"{save_model_name}.pt"
-        model_save_path = Path(path).joinpath(save_model_name)
-        trainer_save_path = Path(path).joinpath("trainer.pt")
-        torch.save(model.state_dict(), model_save_path)
-        self.save(trainer_save_path)
-
-    def upload_model_to_hub(self, repo_id: str, path: str, step: int, commit_message: str | None = None) -> None:
-        """Upload the model folder to Hugging Face Hub.
-
-        Args:
-            repo_id (str): The identifier of the repository on Hugging Face Hub.
-            path (str): The local directory path of the model to be uploaded.
-            step (int): Current training step.
-            commit_message (str | None): Commit message for the upload.
-
-        Returns:
-            None
-        """
-        self.hf_api.upload_folder(
-            repo_id=repo_id,
-            repo_type="model",
-            folder_path=path,
-            commit_message=f"Step: {step}" if commit_message is None else commit_message,
-        )
-
-    def clone_hub_repository_into_save_dir(self, repo_id: str, path: str) -> None:
-        """Clone a Hugging Face Hub repository into the specified local directory.
-
-        Args:
-            repo_id (str): The identifier of the repository on Hugging Face Hub.
-            path (str): The local directory path where the repository will be cloned.
-        """
-        self.hf_api.create_repo(repo_id=repo_id, exist_ok=True, private=False)
-        self.hf_api.snapshot_download(repo_id=repo_id, local_dir=path)

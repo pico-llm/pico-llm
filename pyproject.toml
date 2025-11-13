@@ -8,6 +8,7 @@ dependencies = [
     "datasets>=4.3.0",
     "huggingface-hub>=1.0.1",
     "numpy>=2.3.4",
+    "safetensors>=0.6.2",
     "tiktoken>=0.12.0",
     "torch>=2.9.0",
     "tqdm>=4.67.1",
@@ -19,6 +20,12 @@ dev = [
     "pre-commit>=4.3.0",
     "ruff>=0.14.3",
 ]
+
+[tool.ruff]
+src = ["src"]
+line-length = 120
+target-version = "py313"
+extend-exclude = ["build"]
 
 [tool.ruff.lint]
 select = [
@@ -38,11 +45,6 @@ select = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.ruff]
-line-length = 120
-target-version = "py311"
-extend-exclude = ["build"]
 
 [tool.ruff.format]
 quote-style = "double"

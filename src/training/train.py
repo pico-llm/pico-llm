@@ -1,6 +1,7 @@
 """Training module for language models."""
 
 import json
+from pathlib import Path
 
 import tiktoken
 import torch
@@ -80,7 +81,6 @@ class Trainer(BaseTrainer):
 
     def train(  # noqa: C901
         self,
-        model: nn.Module,
         enc: tiktoken.Encoding,
         train_dataloader: DataLoader,
         num_epochs: int,
@@ -93,7 +93,6 @@ class Trainer(BaseTrainer):
         repo_id: str = None,
         log_interval_steps: int = 100,
         save_interval_steps: int = 200,
-        save_model_name: str = "model",
         save_latest: bool = False,
         save_best: bool = True,
         prompt: str = "Once upon",
@@ -104,7 +103,6 @@ class Trainer(BaseTrainer):
         """Train the language model.
 
         Args:
-            model (nn.Module): The language model to be trained.
             enc (tiktoken.Encoding): The tokenizer encoding.
             train_dataloader (DataLoader): DataLoader for training data.
             num_epochs (int): Number of training epochs.
@@ -117,7 +115,6 @@ class Trainer(BaseTrainer):
             repo_id (str): Hugging Face Hub repository ID.
             log_interval_steps (int): Steps interval for logging training loss.
             save_interval_steps (int): Steps interval for saving model checkpoints.
-            save_model_name (str): Base name for the saved model file.
             save_latest (bool): If True, overwrite the latest checkpoint instead of saving per save steps.
             save_best (bool): If True, track and save the best model checkpoint based on training loss.
             prompt (str): Prompt text for generating sample outputs during training.
@@ -134,38 +131,37 @@ class Trainer(BaseTrainer):
                 entity=wandb_entity,
                 project=wandb_project,
                 name=wandb_name,
-                config=self.get_model_attrs(model),
+                config=self.get_model_attrs(self.model),
             )
 
-        # clone Hugging Face Hub repository if needed
+        # clone Hugging Face Hub configuration
         if upload_model_to_hub:
             self.init_hf_api()
-            self.clone_hub_repository_into_save_dir(repo_id, save_dir)
 
         # Set up tracking variables
         global_step = 0
         steps_per_epoch = len(train_dataloader)
         total_steps = num_epochs * steps_per_epoch
         progress_bar = tqdm(total=total_steps)
-        best_train_loss = float("inf") if save_best else None
+        best_loss = float("inf") if save_best else None
 
         # reset model to training mode
-        model.train()
-        model.zero_grad()
+        self.model.train()
+        self.model.zero_grad()
         torch.cuda.empty_cache()
-        device = next(model.parameters()).device
+        device = next(self.model.parameters()).device
 
         # training loop
         for epoch in range(num_epochs):
             total_epoch_loss = 0.0
             epoch_step = 0
-            for batch_idx, batch_tokens in enumerate(train_dataloader):
+            for batch_tokens in train_dataloader:
                 # track steps
                 epoch_step += 1
                 global_step += 1
 
                 # zero gradients
-                model.train()
+                self.model.train()
                 self.optimizer.zero_grad()
 
                 # move batch to device
@@ -178,7 +174,7 @@ class Trainer(BaseTrainer):
                 }
 
                 # forward pass
-                logits = model(batch_tokens)  # (seq_len, batch, vocab_size)
+                logits = self.model(batch_tokens)  # (seq_len, batch, vocab_size)
                 loss = self.compute_next_token_loss(logits, batch_tokens)
 
                 # backward pass
@@ -187,16 +183,19 @@ class Trainer(BaseTrainer):
                 log_dict["loss"] = loss.item()
 
                 # clip gradients
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
                 # optimizer step
                 self.optimizer.step()
+
+                # step the scheduler (note: we are stepping every batch)
+                self.scheduler.step()
 
                 # log metrics
                 if global_step % log_interval_steps == 0:
                     # generate sample text using greedy decoding
                     text_greedy, annotated_greedy = utils.generate(
-                        model,
+                        self.model,
                         enc,
                         prompt,
                         max_new_tokens,
@@ -205,7 +204,7 @@ class Trainer(BaseTrainer):
                     )
                     # generate sample text using nucleus sampling with top_p
                     text_nucleus_top_p, annotated_nucleus_top_p = utils.generate(
-                        model,
+                        self.model,
                         enc,
                         prompt,
                         max_new_tokens,
@@ -214,7 +213,7 @@ class Trainer(BaseTrainer):
                     )
                     # generate sample text using nucleus sampling with top_p=1.0
                     text_nucleus_top_p_1, annotated_nucleus_top_p_1 = utils.generate(
-                        model,
+                        self.model,
                         enc,
                         prompt,
                         max_new_tokens,
@@ -258,11 +257,17 @@ class Trainer(BaseTrainer):
 
                 # save model checkpoint
                 if global_step % save_interval_steps == 0:
-                    self.save_training_state_locally(
-                        save_dir, model, global_step, save_model_name, save_latest=save_latest
-                    )
+                    if not save_latest:
+                        checkpoint_path = Path(save_dir) / f"step_{global_step}"
+                    else:
+                        checkpoint_path = Path(save_dir) / "latest"
+
+                    self.save_pretrained(save_directory=checkpoint_path)
                     if upload_model_to_hub:
-                        self.upload_model_to_hub(repo_id, save_dir, global_step)
+                        self.push_to_hub(
+                            repo_id=repo_id,
+                            commit_message=f"Training Step {global_step}",
+                        )
 
             # end of epoch logging
             avg_epoch_loss = total_epoch_loss / epoch_step
@@ -270,30 +275,42 @@ class Trainer(BaseTrainer):
                 {
                     "epoch": epoch + 1,
                     "step": global_step,
-                    "avg_loss": avg_epoch_loss,
+                    "loss_avg": avg_epoch_loss,
                     "lr": self.optimizer.param_groups[0]["lr"],
                 }
             )
             progress_bar.write(log_str)
             if self.wandb_writer is not None:
-                self.write_losses_to_wandb(global_step, {"avg_loss": avg_epoch_loss})
+                self.write_losses_to_wandb(global_step, {"loss_avg": avg_epoch_loss})
 
-            # save best model checkpoint based on training loss
-            if save_best and best_train_loss is not None and avg_epoch_loss < best_train_loss:
-                best_train_loss = avg_epoch_loss
-                self.save_training_state_locally(
-                    save_dir, model, global_step, f"{save_model_name}_best", save_latest=True
-                )
-                if upload_model_to_hub:
-                    self.upload_model_to_hub(repo_id, save_dir, global_step)
+            # save best model checkpoint based on the specified metric
+            if save_best and best_loss is not None:
+                # determine which loss metric to use
+                # if loss_metric_for_best_model == "train":
+                #     current_loss = avg_epoch_loss
+                # elif loss_metric_for_best_model == "val" and val_loader is not None:
+                #     current_loss = val_losses["loss_avg"]
+                # else:
+                #     raise ValueError("Invalid loss_metric_for_best_model or missing val_loader.")
+                current_loss = avg_epoch_loss  # TODO: extend to validation loss later
 
-            # step the scheduler
-            self.scheduler.step()
+                if current_loss < best_loss:
+                    best_loss = current_loss
+                    checkpoint_path = Path(save_dir) / "best_model"
+                    self.save_pretrained(save_directory=checkpoint_path)
+                    if upload_model_to_hub:
+                        self.push_to_hub(
+                            repo_id=repo_id,
+                            commit_message=f"Best model at Step {global_step}",
+                        )
 
         # close progress bar
         progress_bar.close()
 
         # final model save
-        self.save_training_state_locally(save_dir, model, global_step, save_model_name, save_latest=save_latest)
+        self.save_pretrained(save_directory=Path(save_dir) / "final_model")
         if upload_model_to_hub:
-            self.upload_model_to_hub(repo_id, save_dir, global_step)
+            self.push_to_hub(
+                repo_id=repo_id,
+                commit_message=f"Final model at Step {global_step}",
+            )
