@@ -3,8 +3,9 @@
 import tiktoken
 import torch
 from torch import nn
+from tqdm.auto import tqdm
 
-from utils.generation import generate
+from .generation import generate
 
 
 def compute_distinct_n(generated_texts: list[str], enc: tiktoken.Encoding, n: int) -> float:
@@ -59,7 +60,7 @@ def compute_diversity(
     model.eval()
     generated_texts = []
     with torch.no_grad():
-        for prompt in prompts:
+        for prompt in tqdm(prompts, desc="Generating texts for diversity evaluation"):
             # generate text using nucleus sampling
             generated_text, _ = generate(
                 model,

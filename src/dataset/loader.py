@@ -3,7 +3,6 @@
 import tiktoken
 import torch
 from datasets import load_dataset
-from torch.utils.data import random_split
 from tqdm.auto import tqdm
 
 from .fixed_sequence_dataset import FixedSequenceDataset
@@ -36,7 +35,6 @@ def _load_tinystories(block_size: int, enc: tiktoken.Encoding) -> list[list[int]
     """Load TinyStories dataset from HuggingFace and tokenize sequences.
 
     Args:
-        dataset_subset_size (int): Number of sequences to use from TinyStories.
         block_size (int): Maximum sequence length for each example.
         enc (tiktoken.Encoding): Tiktoken encoding instance.
 
@@ -110,7 +108,6 @@ def create_dataloaders(
         batch_size (int): Batch size for training.
         train_ratio (float): Ratio of data for training.
         val_ratio (float): Ratio of data for validation.
-        test_ratio (float): Ratio of data for testing.
         dataset_type (str): Type of dataset to use ("fixed" or "mixed").
         seed (int): Random seed for reproducibility.
 
@@ -141,13 +138,10 @@ def create_dataloaders(
 
     train_len = int(num_sequences * train_ratio)
     val_len = int(num_sequences * val_ratio)
-    test_len = num_sequences - train_len - val_len
-
-    train_seqs, val_seqs, test_seqs = random_split(
-        all_sequences,
-        [train_len, val_len, test_len],
-        generator=torch.Generator().manual_seed(seed),
-    )
+    shuffled_indices = torch.randperm(num_sequences).tolist()
+    train_seqs = [all_sequences[i] for i in shuffled_indices[:train_len]]
+    val_seqs = [all_sequences[i] for i in shuffled_indices[train_len : train_len + val_len]]
+    test_seqs = [all_sequences[i] for i in shuffled_indices[train_len + val_len :]]
 
     print("Data splits:")
     print(f"  - Train: {len(train_seqs)} ({len(train_seqs) / num_sequences * 100:.1f}%)")
@@ -162,18 +156,36 @@ def create_dataloaders(
 
     # create dataloaders
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=_seq_collate_fn
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        collate_fn=_seq_collate_fn,
     )
     val_loader = (
         torch.utils.data.DataLoader(
-            val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=_seq_collate_fn
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=2,
+            pin_memory=True,
+            persistent_workers=True,
+            collate_fn=_seq_collate_fn,
         )
         if len(val_dataset) > 0
         else None
     )
     test_loader = (
         torch.utils.data.DataLoader(
-            test_dataset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=_seq_collate_fn
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=2,
+            pin_memory=True,
+            persistent_workers=True,
+            collate_fn=_seq_collate_fn,
         )
         if len(test_dataset) > 0
         else None

@@ -338,10 +338,10 @@ class Trainer(BaseTrainer):
             if save_best and best_loss is not None:
                 if loss_metric_for_best_model == "train":
                     current_loss = avg_epoch_loss
-                elif loss_metric_for_best_model == "val" and val_dataloader is not None:
+                elif loss_metric_for_best_model == "val" and val_metrics is not None:
                     current_loss = val_metrics["loss"]
                 else:
-                    raise ValueError("Invalid loss_metric_for_best_model or missing val_loader.")
+                    raise ValueError("Invalid loss_metric_for_best_model or missing val_dataloader.")
 
                 if current_loss < best_loss:
                     best_loss = current_loss
@@ -352,9 +352,6 @@ class Trainer(BaseTrainer):
                             repo_id=repo_id,
                             commit_message=f"Best model at Step {global_step}",
                         )
-
-        # close progress bar
-        progress_bar.close()
 
         # final model save
         self.save_pretrained(save_directory=Path(save_dir) / "final_model")
@@ -372,18 +369,27 @@ class Trainer(BaseTrainer):
                 "test_perplexity": test_metrics["perplexity"],
             }
             # compute diversity metrics on test set
+            prompts = list()
+            for seq in test_dataloader.dataset:
+                seq = seq.tolist()[:10]  # take first 10 tokens as prompt # TODO: Add as argument
+                prompt = enc.decode(seq)
+                prompts.append(prompt)
+
             diversity_metrics = utils.compute_diversity(
                 enc,
                 self.model,
-                test_dataloader.dataset,
-                n=5,
+                prompts,
+                n=5,  # TODO: Add as argument
                 max_new_tokens=max_new_tokens,
                 top_p=top_p,
             )
-            test_metrics.update(diversity_metrics)
-            progress_bar.write(json.dumps(test_metrics))
+            log_dict.update(diversity_metrics)
+            progress_bar.write(json.dumps(log_dict))
             if self.wandb_writer is not None:
-                self.write_losses_to_wandb(global_step, test_metrics)
+                self.write_losses_to_wandb(global_step, log_dict)
+
+        # close progress bar
+        progress_bar.close()
 
         # close wandb writer
         if self.wandb_writer is not None:
