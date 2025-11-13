@@ -36,10 +36,10 @@ def parse_args() -> argparse.Namespace:
         help="Type of dataset to use: 'fixed' for deterministic splits, 'mixed' for random sampling. Default='fixed'.",
     )
     parser.add_argument(
-        "--train-ratio", type=float, default=0.9, help="Ratio of data to use for training. Default=0.8."
+        "--train-ratio", type=float, default=0.9, help="Ratio of data to use for training. Default=0.9."
     )
     parser.add_argument(
-        "--val-ratio", type=float, default=0.05, help="Ratio of data to use for validation. Default=0.1."
+        "--val-ratio", type=float, default=0.05, help="Ratio of data to use for validation. Default=0.05."
     )
 
     # Tokenizer and model parameters

@@ -5,9 +5,11 @@ set -e
 # Data source configuration
 
 INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
-TINYSTORIES_WEIGHT=0.5          # Probability of sampling from TinyStories (0.0 to skip)
-DATASET_SUBSET_SIZE="20000"          # Number of sequences (empty = use all data)
-BLOCK_SIZE=64                 # Maximum sequence length
+DATASET_SUBSET_SIZE=""          # Number of sequences (empty = use all data)
+BLOCK_SIZE=1024                 # Maximum sequence length
+DATASET_TYPE="fixed"            # Types: fixed, mixed
+TRAIN_RATIO=0.9                 # Train split ratio
+VAL_RATIO=0.05                  # Validation split ratio
 
 # Model configuration
 
@@ -22,7 +24,7 @@ EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: f
 
 # Training configuration
 
-CHECKPOINT=""
+CHECKPOINT="" # Path to model checkpoint to resume training (empty = start fresh)
 BATCH_SIZE=16                   # Batch size
 NUM_EPOCHS=20                   # Number of training epochs
 LEARNING_RATE=3e-4              # Learning rate
@@ -37,6 +39,7 @@ SAVE_INTERVAL_STEPS=1000        # Save model checkpoint every N steps
 SAVE_DIR="./saved_models"       # Directory to save checkpoints
 SAVE_LATEST=true                # Overwrite latest checkpoint instead of saving per step
 SAVE_BEST=true                  # Track and save best model based on training loss
+LOSS_METRIC_FOR_BEST_MODEL="val"  # Metric to use for best model: train, val
 
 # Generation configuration
 
@@ -57,12 +60,12 @@ WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated)
 
 # Hugging Face Hub Configuration
 
-UPLOAD_MODEL_TO_HUB=false        # Upload model to Hugging Face Hub
+UPLOAD_MODEL_TO_HUB=true        # Upload model to Hugging Face Hub
 REPO_ID="pico-llm/lstm"         # Hugging Face Hub repository ID
 
 # System Configuration
 
-DEVICE="cpu"                 # Torch device (cuda:0, cpu, etc.)
+DEVICE="cuda:0"                 # Torch device (cuda:0, cpu, etc.)
 SEED=42                         # Random seed for reproducibility
 
 # Start building the command
@@ -73,7 +76,6 @@ if [ ${#INPUT_FILES[@]} -gt 0 ]; then
 fi
 
 # Add all other arguments
-CMD="$CMD --tinystories-weight $TINYSTORIES_WEIGHT"
 CMD="$CMD --encoding-name $ENCODING_NAME"
 CMD="$CMD --model $MODEL"
 CMD="$CMD --batch-size $BATCH_SIZE"
@@ -82,6 +84,10 @@ CMD="$CMD --learning-rate $LEARNING_RATE"
 CMD="$CMD --optimizer-class $OPTIMIZER_CLASS"
 CMD="$CMD --scheduler-class $SCHEDULER_CLASS"
 CMD="$CMD --warmup-ratio $WARMUP_RATIO"
+CMD="$CMD --dataset-type $DATASET_TYPE"
+CMD="$CMD --train-ratio $TRAIN_RATIO"
+CMD="$CMD --val-ratio $VAL_RATIO"
+CMD="$CMD --loss-metric-for-best-model $LOSS_METRIC_FOR_BEST_MODEL"
 
 # Add train subset size if specified
 if [ -n "$DATASET_SUBSET_SIZE" ]; then
