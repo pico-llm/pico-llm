@@ -6,8 +6,8 @@ set -e
 
 INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
 TINYSTORIES_WEIGHT=0.5          # Probability of sampling from TinyStories (0.0 to skip)
-TRAIN_SUBSET_SIZE=""            # Number of training sequences (empty = use all data)
-BLOCK_SIZE=1024                 # Maximum sequence length
+DATASET_SUBSET_SIZE="20000"          # Number of sequences (empty = use all data)
+BLOCK_SIZE=64                 # Maximum sequence length
 
 # Model configuration
 
@@ -57,12 +57,12 @@ WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated)
 
 # Hugging Face Hub Configuration
 
-UPLOAD_MODEL_TO_HUB=true        # Upload model to Hugging Face Hub
+UPLOAD_MODEL_TO_HUB=false        # Upload model to Hugging Face Hub
 REPO_ID="pico-llm/lstm"         # Hugging Face Hub repository ID
 
 # System Configuration
 
-DEVICE="cuda:0"                 # Torch device (cuda:0, cpu, etc.)
+DEVICE="cpu"                 # Torch device (cuda:0, cpu, etc.)
 SEED=42                         # Random seed for reproducibility
 
 # Start building the command
@@ -84,8 +84,8 @@ CMD="$CMD --scheduler-class $SCHEDULER_CLASS"
 CMD="$CMD --warmup-ratio $WARMUP_RATIO"
 
 # Add train subset size if specified
-if [ -n "$TRAIN_SUBSET_SIZE" ]; then
-    CMD="$CMD --train-subset-size $TRAIN_SUBSET_SIZE"
+if [ -n "$DATASET_SUBSET_SIZE" ]; then
+    CMD="$CMD --dataset-subset-size $DATASET_SUBSET_SIZE"
 fi
 
 # Add checkpoint if specified

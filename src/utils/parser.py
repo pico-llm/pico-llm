@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
         help="Probability of sampling from TinyStories if present. Default=0.5. (set to 0.0 to skip TinyStories).",
     )
     parser.add_argument(
-        "--train-subset-size",
+        "--dataset-subset-size",
         type=int,
         help="Number of training sequences to use. Default=None (use all data).",
     )
