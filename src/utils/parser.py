@@ -51,12 +51,7 @@ def parse_args() -> argparse.Namespace:
         help="Model architecture to use. Default='lstm'.",
     )
     # Transformer-specific hyperparameters (used when --model transformer)
-    parser.add_argument(
-        "--d-model",
-        type=int,
-        default=128,
-        help="Hidden dimension (d_model) for Transformer (default=128).",
-    )
+    # Note: Transformer reuses --embed-size for d_model and --block-size for max_seq_len
     parser.add_argument(
         "--n-heads",
         type=int,
@@ -70,10 +65,11 @@ def parse_args() -> argparse.Namespace:
         help="Number of Transformer blocks (default=2).",
     )
     parser.add_argument(
-        "--max-seq-len",
-        type=int,
-        default=1024,
-        help="Maximum sequence length / positional embeddings for Transformer (default=1024).",
+        "--norm",
+        type=str,
+        choices=["prenorm", "postnorm"],
+        default="prenorm",
+        help="Normalization style for Transformer blocks: 'prenorm' (default) or 'postnorm'.",
     )
     parser.add_argument(
         "--dropout",
@@ -81,7 +77,7 @@ def parse_args() -> argparse.Namespace:
         default=0.1,
         help="Dropout rate for Transformer (default=0.1).",
     )
-    #pre-norm by default, set this flag to use post-norm
+    # pre-norm by default, set this flag to use post-norm
     parser.add_argument(
         "--no-pre-norm",
         action="store_false",
