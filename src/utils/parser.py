@@ -20,20 +20,26 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional list of text files to mix in as data sources. Each line is one example (up to block_size).",
     )
-    # TODO: Figure out why we need this, if we can set a better default, etc.
     parser.add_argument(
-        "--tinystories-weight",
-        type=float,
-        default=0.5,
-        help="Probability of sampling from TinyStories if present. Default=0.5. (set to 0.0 to skip TinyStories).",
-    )
-    parser.add_argument(
-        "--train-subset-size",
+        "--dataset-subset-size",
         type=int,
-        help="Number of training sequences to use. Default=None (use all data).",
+        help="Number of dataset sequences to use. Default=None (use all data).",
     )
     parser.add_argument(
         "--block-size", type=int, default=1024, help="Maximum sequence length for each example. Default=1024."
+    )
+    parser.add_argument(
+        "--dataset-type",
+        type=str,
+        choices=["fixed", "mixed"],
+        default="fixed",
+        help="Type of dataset to use: 'fixed' for deterministic splits, 'mixed' for random sampling. Default='fixed'.",
+    )
+    parser.add_argument(
+        "--train-ratio", type=float, default=0.9, help="Ratio of data to use for training. Default=0.9."
+    )
+    parser.add_argument(
+        "--val-ratio", type=float, default=0.05, help="Ratio of data to use for validation. Default=0.05."
     )
 
     # Tokenizer and model parameters
@@ -141,6 +147,13 @@ def parse_args() -> argparse.Namespace:
         "--save-best",
         action="store_true",
         help="If set, track and save the best model checkpoint based on training loss.",
+    )
+    parser.add_argument(
+        "--loss-metric-for-best-model",
+        type=str,
+        choices=["train", "val"],
+        default="val",
+        help="Metric to use for determining the best model when --save-best is set. Default='val'.",
     )
 
     # Generation parameters for training samples

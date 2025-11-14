@@ -5,6 +5,7 @@ import torch
 from datasets import load_dataset
 from tqdm.auto import tqdm
 
+from .fixed_sequence_dataset import FixedSequenceDataset
 from .mixed_sequence_dataset import MixedSequenceDataset
 
 
@@ -30,14 +31,10 @@ def _seq_collate_fn(batch: list[torch.Tensor]) -> torch.Tensor:
     return padded
 
 
-def _load_tinystories(
-    tinystories_weight: float, train_subset_size: int, block_size: int, enc: tiktoken.Encoding
-) -> list[list[int]]:
+def _load_tinystories(block_size: int, enc: tiktoken.Encoding) -> list[list[int]]:
     """Load TinyStories dataset from HuggingFace and tokenize sequences.
 
     Args:
-        tinystories_weight (float): Probability of sampling from TinyStories.
-        train_subset_size (int): Number of training sequences to use from TinyStories.
         block_size (int): Maximum sequence length for each example.
         enc (tiktoken.Encoding): Tiktoken encoding instance.
 
@@ -45,23 +42,15 @@ def _load_tinystories(
         list[list[int]]: List of tokenized TinyStories sequences.
     """
     tinystories_seqs = list()
-    if tinystories_weight > 0.0:
-        print(f"Loading TinyStories from huggingface with weight={tinystories_weight}...")
-        dataset = load_dataset("roneneldan/TinyStories", split="train")
-        if train_subset_size is not None and isinstance(train_subset_size, int):
-            dataset = dataset.select(range(train_subset_size))
-    else:
-        print("TinyStories weight=0 => skipping TinyStories.")
-        dataset = None
-
-    if dataset is not None:
-        for sample in tqdm(dataset, total=len(dataset), desc="Tokenizing TinyStories"):
-            text = sample["text"]
-            tokens = enc.encode(text)
-            tokens = tokens[:block_size]
-            if len(tokens) > 0:
-                tinystories_seqs.append(tokens)
-        print(f"TinyStories sequences: {len(tinystories_seqs)}")
+    print("Loading TinyStories from huggingface...")
+    dataset = load_dataset("roneneldan/TinyStories", split="train")
+    for sample in tqdm(dataset, total=len(dataset), desc="Tokenizing TinyStories"):
+        text = sample["text"]
+        tokens = enc.encode(text)
+        tokens = tokens[:block_size]
+        if len(tokens) > 0:
+            tinystories_seqs.append(tokens)
+    print(f"TinyStories sequences: {len(tinystories_seqs)}")
 
     return tinystories_seqs
 
@@ -98,35 +87,108 @@ def _load_input_files(input_files: list[str] | None, block_size: int, enc: tikto
     return seqs
 
 
-def create_train_dataloader(
-    tinystories_weight: float,
-    train_subset_size: int,
+def create_dataloaders(
+    dataset_subset_size: int | None,
     input_files: list[str] | None,
     block_size: int,
     enc: tiktoken.Encoding,
     batch_size: int,
-) -> torch.utils.data.DataLoader:
-    """Create the training dataloader with mixed TinyStories and other text sequences.
+    train_ratio: float,
+    val_ratio: float,
+    dataset_type: str = "fixed",
+    seed: int = 42,
+) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+    """Create train/val/test dataloaders.
 
     Args:
-        tinystories_weight (float): Probability of sampling from TinyStories.
-        train_subset_size (int): Number of training sequences to use from TinyStories.
+        dataset_subset_size (int | None): Number of sequences to use from the dataset. If None, use all data.
         input_files (Optional[list[str]]): List of custom text files to include.
         block_size (int): Maximum sequence length for each example.
         enc (tiktoken.Encoding): Tiktoken encoding instance.
         batch_size (int): Batch size for training.
+        train_ratio (float): Ratio of data for training.
+        val_ratio (float): Ratio of data for validation.
+        dataset_type (str): Type of dataset to use ("fixed" or "mixed").
+        seed (int): Random seed for reproducibility.
 
     Returns:
-        torch.utils.data.DataLoader: DataLoader for the mixed training dataset.
+        tuple[DataLoader, DataLoader, DataLoader]: Train, validation, and test dataloaders.
     """
-    tinystories_seqs = _load_tinystories(tinystories_weight, train_subset_size, block_size, enc)
+    # load all sequences
+    tinystories_seqs = _load_tinystories(block_size, enc)
     other_seqs = _load_input_files(input_files, block_size, enc)
 
-    p_tiny = tinystories_weight
-    if len(tinystories_seqs) == 0 and p_tiny > 0:
-        print("Warning: TinyStories is empty but tinystories_weight>0. That's okay, no data from it.")
+    # combine all sequences
+    all_sequences = tinystories_seqs + other_seqs
+    all_sequences = all_sequences[:dataset_subset_size] if dataset_subset_size else all_sequences
+    num_sequences = len(all_sequences)
 
-    combined_dataset = MixedSequenceDataset(tinystories_seqs=tinystories_seqs, other_seqs=other_seqs, p_tiny=p_tiny)
-    return torch.utils.data.DataLoader(
-        combined_dataset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=_seq_collate_fn
+    if num_sequences == 0:
+        raise ValueError("No data found! Both TinyStories and other sets are empty.")
+
+    print(f"Total sequences loaded: {num_sequences}")
+    print(f"  - TinyStories: {len(tinystories_seqs)}")
+    print(f"  - Custom files: {len(other_seqs)}")
+
+    # Split deterministically
+    if train_ratio == 0.0:
+        raise ValueError("Train ratio must be greater than 0.")
+    if train_ratio + val_ratio >= 1.0:
+        raise ValueError("Train + Val ratio must be less than 1.")
+
+    train_len = int(num_sequences * train_ratio)
+    val_len = int(num_sequences * val_ratio)
+    shuffled_indices = torch.randperm(num_sequences).tolist()
+    train_seqs = [all_sequences[i] for i in shuffled_indices[:train_len]]
+    val_seqs = [all_sequences[i] for i in shuffled_indices[train_len : train_len + val_len]]
+    test_seqs = [all_sequences[i] for i in shuffled_indices[train_len + val_len :]]
+
+    print("Data splits:")
+    print(f"  - Train: {len(train_seqs)} ({len(train_seqs) / num_sequences * 100:.1f}%)")
+    print(f"  - Val: {len(val_seqs)} ({len(val_seqs) / num_sequences * 100:.1f}%)")
+    print(f"  - Test: {len(test_seqs)} ({len(test_seqs) / num_sequences * 100:.1f}%)")
+
+    # create datasets
+    dataset_cls = FixedSequenceDataset if dataset_type == "fixed" else MixedSequenceDataset
+    train_dataset = dataset_cls(train_seqs)
+    val_dataset = dataset_cls(val_seqs)
+    test_dataset = dataset_cls(test_seqs)
+
+    # create dataloaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        collate_fn=_seq_collate_fn,
     )
+    val_loader = (
+        torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=2,
+            pin_memory=True,
+            persistent_workers=True,
+            collate_fn=_seq_collate_fn,
+        )
+        if len(val_dataset) > 0
+        else None
+    )
+    test_loader = (
+        torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=2,
+            pin_memory=True,
+            persistent_workers=True,
+            collate_fn=_seq_collate_fn,
+        )
+        if len(test_dataset) > 0
+        else None
+    )
+
+    return train_loader, val_loader, test_loader

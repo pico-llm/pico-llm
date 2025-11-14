@@ -69,7 +69,7 @@ class Trainer(BaseTrainer):
         Returns:
             torch.Tensor: Computed cross-entropy loss.
         """
-        seq_len, batch_size, vocab_size = logits.shape
+        seq_len, _, vocab_size = logits.shape
         if seq_len < 2:
             return torch.tensor(0.0, device=logits.device, requires_grad=True)
 
@@ -79,10 +79,38 @@ class Trainer(BaseTrainer):
         gold = gold.reshape(-1)
         return F.cross_entropy(preds, gold)
 
+    def evaluate(self, dataloader: DataLoader, device: torch.device) -> dict[str, float]:
+        """Run evaluation on the given dataloader.
+
+        Args:
+            dataloader (DataLoader): DataLoader for evaluation data.
+            device (torch.device): Device to run evaluation on.
+
+        Returns:
+            dict[str, float]: Dictionary containing evaluation metrics (loss, perplexity).
+        """
+        self.model.eval()
+        total_loss = 0.0
+        num_batches = 0
+
+        with torch.no_grad():
+            for batch_tokens in dataloader:
+                batch_tokens = batch_tokens.to(device)  # (seq_len, batch)
+                logits = self.model(batch_tokens)  # (seq_len, batch, vocab_size)
+                loss = self.compute_next_token_loss(logits, batch_tokens)
+                total_loss += loss.item()
+                num_batches += 1
+
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+        perplexity = torch.exp(torch.tensor(avg_loss)).item()
+        return {"loss": avg_loss, "perplexity": perplexity}
+
     def train(  # noqa: C901
         self,
         enc: tiktoken.Encoding,
         train_dataloader: DataLoader,
+        val_dataloader: DataLoader | None,
+        test_dataloader: DataLoader | None,
         num_epochs: int,
         save_dir: str = "./saved_models",
         use_wandb: bool = False,
@@ -95,6 +123,7 @@ class Trainer(BaseTrainer):
         save_interval_steps: int = 200,
         save_latest: bool = False,
         save_best: bool = True,
+        loss_metric_for_best_model: str = "val",
         prompt: str = "Once upon",
         max_new_tokens: int = 50,
         top_p: float = 0.9,
@@ -105,6 +134,8 @@ class Trainer(BaseTrainer):
         Args:
             enc (tiktoken.Encoding): The tokenizer encoding.
             train_dataloader (DataLoader): DataLoader for training data.
+            val_dataloader (DataLoader | None): DataLoader for validation data.
+            test_dataloader (DataLoader | None): DataLoader for test data.
             num_epochs (int): Number of training epochs.
             save_dir (str): Directory to save model checkpoints.
             use_wandb (bool): Whether to use Weights & Biases for logging.
@@ -116,7 +147,8 @@ class Trainer(BaseTrainer):
             log_interval_steps (int): Steps interval for logging training loss.
             save_interval_steps (int): Steps interval for saving model checkpoints.
             save_latest (bool): If True, overwrite the latest checkpoint instead of saving per save steps.
-            save_best (bool): If True, track and save the best model checkpoint based on training loss.
+            save_best (bool): If True, track and save the best model checkpoint.
+            loss_metric_for_best_model (str): Metric to use for best model tracking ("val" or "train").
             prompt (str): Prompt text for generating sample outputs during training.
             max_new_tokens (int): Maximum number of new tokens to generate for sample outputs.
             top_p (float): Nucleus sampling probability for generating sample outputs.
@@ -181,6 +213,7 @@ class Trainer(BaseTrainer):
                 loss.backward()
                 total_epoch_loss += loss.item()
                 log_dict["loss"] = loss.item()
+                log_dict["perplexity"] = torch.exp(loss).item()
 
                 # clip gradients
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
@@ -226,13 +259,8 @@ class Trainer(BaseTrainer):
                             "epoch": float(f"{epoch + (epoch_step / steps_per_epoch):.2f}"),
                             "step": global_step,
                             "loss": loss.item(),
+                            "perplexity": torch.exp(loss).item(),
                             "lr": self.optimizer.param_groups[0]["lr"],
-                            "text_greedy": text_greedy,
-                            "annotated_greedy": annotated_greedy,
-                            f"text_nucleus_{top_p}": text_nucleus_top_p,
-                            f"annotated_nucleus_{top_p}": annotated_nucleus_top_p,
-                            "text_nucleus_1.0": text_nucleus_top_p_1,
-                            "annotated_nucleus_1.0": annotated_nucleus_top_p_1,
                         }
                     )
                     progress_bar.write(log_str)
@@ -271,28 +299,49 @@ class Trainer(BaseTrainer):
 
             # end of epoch logging
             avg_epoch_loss = total_epoch_loss / epoch_step
-            log_str = json.dumps(
-                {
-                    "epoch": epoch + 1,
-                    "step": global_step,
-                    "loss_avg": avg_epoch_loss,
-                    "lr": self.optimizer.param_groups[0]["lr"],
-                }
-            )
+            avg_epoch_perplexity = torch.exp(torch.tensor(avg_epoch_loss)).item()
+            log_dict_epoch = {
+                "epoch": epoch + 1,
+                "step": global_step,
+                "train_loss": avg_epoch_loss,
+                "train_perplexity": avg_epoch_perplexity,
+                "lr": self.optimizer.param_groups[0]["lr"],
+            }
+            # evaluate on validation set if provided
+            val_metrics = None
+            if val_dataloader is not None:
+                val_metrics = self.evaluate(val_dataloader, device)
+                log_dict_epoch.update(
+                    {
+                        "val_loss": val_metrics["loss"],
+                        "val_perplexity": val_metrics["perplexity"],
+                    }
+                )
+
+            log_str = json.dumps(log_dict_epoch)
             progress_bar.write(log_str)
             if self.wandb_writer is not None:
-                self.write_losses_to_wandb(global_step, {"loss_avg": avg_epoch_loss})
+                wandb_log_dict = {
+                    "train_loss": avg_epoch_loss,
+                    "train_perplexity": avg_epoch_perplexity,
+                }
+                if val_metrics is not None:
+                    wandb_log_dict.update(
+                        {
+                            "val_loss": val_metrics["loss"],
+                            "val_perplexity": val_metrics["perplexity"],
+                        }
+                    )
+                self.write_losses_to_wandb(global_step, wandb_log_dict)
 
-            # save best model checkpoint based on the specified metric
+            # save best model checkpoint based on specified metric
             if save_best and best_loss is not None:
-                # determine which loss metric to use
-                # if loss_metric_for_best_model == "train":
-                #     current_loss = avg_epoch_loss
-                # elif loss_metric_for_best_model == "val" and val_loader is not None:
-                #     current_loss = val_losses["loss_avg"]
-                # else:
-                #     raise ValueError("Invalid loss_metric_for_best_model or missing val_loader.")
-                current_loss = avg_epoch_loss  # TODO: extend to validation loss later
+                if loss_metric_for_best_model == "train":
+                    current_loss = avg_epoch_loss
+                elif loss_metric_for_best_model == "val" and val_metrics is not None:
+                    current_loss = val_metrics["loss"]
+                else:
+                    raise ValueError("Invalid loss_metric_for_best_model or missing val_dataloader.")
 
                 if current_loss < best_loss:
                     best_loss = current_loss
@@ -304,9 +353,6 @@ class Trainer(BaseTrainer):
                             commit_message=f"Best model at Step {global_step}",
                         )
 
-        # close progress bar
-        progress_bar.close()
-
         # final model save
         self.save_pretrained(save_directory=Path(save_dir) / "final_model")
         if upload_model_to_hub:
@@ -314,3 +360,37 @@ class Trainer(BaseTrainer):
                 repo_id=repo_id,
                 commit_message=f"Final model at Step {global_step}",
             )
+
+        # evaluate on test set if provided
+        if test_dataloader is not None:
+            test_metrics = self.evaluate(test_dataloader, device)
+            log_dict = {
+                "test_loss": test_metrics["loss"],
+                "test_perplexity": test_metrics["perplexity"],
+            }
+            # compute diversity metrics on test set
+            prompts = list()
+            for seq in test_dataloader.dataset:
+                seq = seq.tolist()[:10]  # take first 10 tokens as prompt # TODO: Add as argument
+                prompt = enc.decode(seq)
+                prompts.append(prompt)
+
+            diversity_metrics = utils.compute_diversity(
+                enc,
+                self.model,
+                prompts,
+                n=5,  # TODO: Add as argument
+                max_new_tokens=max_new_tokens,
+                top_p=top_p,
+            )
+            log_dict.update(diversity_metrics)
+            progress_bar.write(json.dumps(log_dict))
+            if self.wandb_writer is not None:
+                self.write_losses_to_wandb(global_step, log_dict)
+
+        # close progress bar
+        progress_bar.close()
+
+        # close wandb writer
+        if self.wandb_writer is not None:
+            self.wandb_writer.finish()

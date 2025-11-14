@@ -5,9 +5,11 @@ set -e
 # Data source configuration
 
 INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
-TINYSTORIES_WEIGHT=0.5          # Probability of sampling from TinyStories (0.0 to skip)
-TRAIN_SUBSET_SIZE=""            # Number of training sequences (empty = use all data)
+DATASET_SUBSET_SIZE=""          # Number of sequences (empty = use all data)
 BLOCK_SIZE=1024                 # Maximum sequence length
+DATASET_TYPE="fixed"            # Types: fixed, mixed
+TRAIN_RATIO=0.9                 # Train split ratio
+VAL_RATIO=0.05                  # Validation split ratio
 
 # Model configuration
 
@@ -22,7 +24,7 @@ EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: f
 
 # Training configuration
 
-CHECKPOINT=""
+CHECKPOINT=""                   # Path to model checkpoint to resume training (empty = start fresh)
 BATCH_SIZE=16                   # Batch size
 NUM_EPOCHS=20                   # Number of training epochs
 LEARNING_RATE=3e-4              # Learning rate
@@ -32,11 +34,12 @@ WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 
 # Logging and checkpointing
 
-LOG_INTERVAL_STEPS=500          # Log training loss every N steps
-SAVE_INTERVAL_STEPS=1000        # Save model checkpoint every N steps
-SAVE_DIR="./saved_models"       # Directory to save checkpoints
-SAVE_LATEST=true                # Overwrite latest checkpoint instead of saving per step
-SAVE_BEST=true                  # Track and save best model based on training loss
+LOG_INTERVAL_STEPS=500              # Log training loss every N steps
+SAVE_INTERVAL_STEPS=1000            # Save model checkpoint every N steps
+SAVE_DIR="./saved_models"           # Directory to save checkpoints
+SAVE_LATEST=true                    # Overwrite latest checkpoint instead of saving per step
+SAVE_BEST=true                      # Track and save best model based on training loss
+LOSS_METRIC_FOR_BEST_MODEL="val"    # Metric to use for best model: train, val
 
 # Generation configuration
 
@@ -73,7 +76,6 @@ if [ ${#INPUT_FILES[@]} -gt 0 ]; then
 fi
 
 # Add all other arguments
-CMD="$CMD --tinystories-weight $TINYSTORIES_WEIGHT"
 CMD="$CMD --encoding-name $ENCODING_NAME"
 CMD="$CMD --model $MODEL"
 CMD="$CMD --batch-size $BATCH_SIZE"
@@ -82,10 +84,14 @@ CMD="$CMD --learning-rate $LEARNING_RATE"
 CMD="$CMD --optimizer-class $OPTIMIZER_CLASS"
 CMD="$CMD --scheduler-class $SCHEDULER_CLASS"
 CMD="$CMD --warmup-ratio $WARMUP_RATIO"
+CMD="$CMD --dataset-type $DATASET_TYPE"
+CMD="$CMD --train-ratio $TRAIN_RATIO"
+CMD="$CMD --val-ratio $VAL_RATIO"
+CMD="$CMD --loss-metric-for-best-model $LOSS_METRIC_FOR_BEST_MODEL"
 
 # Add train subset size if specified
-if [ -n "$TRAIN_SUBSET_SIZE" ]; then
-    CMD="$CMD --train-subset-size $TRAIN_SUBSET_SIZE"
+if [ -n "$DATASET_SUBSET_SIZE" ]; then
+    CMD="$CMD --dataset-subset-size $DATASET_SUBSET_SIZE"
 fi
 
 # Add checkpoint if specified
