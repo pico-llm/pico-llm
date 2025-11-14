@@ -5,7 +5,7 @@
 #SBATCH --mem=32G
 ## SBATCH --partition=a100_1
 #SBATCH --open-mode=append
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --error=logs/%x_%j.err
 #SBATCH --output=logs/%x_%j.out

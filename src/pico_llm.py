@@ -14,7 +14,6 @@ import utils
 if __name__ == "__main__":
     # set up argument parser and parse args
     args = utils.parse_args()
-    # TODO: Move all prints to logs
     print(args)
 
     # set device
@@ -31,20 +30,23 @@ if __name__ == "__main__":
     vocab_size = enc.n_vocab
     print(f"Vocab size: {vocab_size}")
 
-    # create train dataloader
-    train_dataloader = dataset.create_train_dataloader(
-        tinystories_weight=args.tinystories_weight,
-        train_subset_size=args.train_subset_size,
+    # create train/val/test dataloaders
+    train_dataloader, val_dataloader, test_dataloader = dataset.create_dataloaders(
+        dataset_subset_size=args.dataset_subset_size,
         input_files=args.input_files,
         block_size=args.block_size,
         enc=enc,
         batch_size=args.batch_size,
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        dataset_type=args.dataset_type,
+        seed=args.seed,
     )
 
     # initialize model
     model = models.init_model(args, vocab_size, device)
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"Instantiated {args.model} / params: {total_params // 10**6}M")
+    print(f"Instantiated {args.model} / params: {total_params / 10**6:.2f}M")
 
     # initialize trainer
     trainer = training.init_trainer(model, train_dataloader, args)
@@ -53,6 +55,8 @@ if __name__ == "__main__":
     trainer.train(
         enc=enc,
         train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+        test_dataloader=test_dataloader,
         num_epochs=args.num_epochs,
         save_dir=args.save_dir,
         use_wandb=args.use_wandb,
@@ -65,6 +69,7 @@ if __name__ == "__main__":
         save_interval_steps=args.save_interval_steps,
         save_latest=args.save_latest,
         save_best=args.save_best,
+        loss_metric_for_best_model=args.loss_metric_for_best_model,
         prompt=args.prompt,
         max_new_tokens=args.max_new_tokens,
         top_p=args.top_p,
