@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         help="Model architecture to use. Default='lstm'.",
     )
     # Transformer-specific hyperparameters (used when --model transformer)
-    # Note: Transformer reuses --embed-size for d_model and --block-size for max_seq_len
+    # reuses --embed-size for d_model and --block-size for max_seq_len
     parser.add_argument(
         "--n-heads",
         type=int,
