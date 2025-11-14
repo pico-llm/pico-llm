@@ -6,17 +6,17 @@ set -e
 
 INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
 DATASET_SUBSET_SIZE=""          # Number of sequences (empty = use all data)
-BLOCK_SIZE=1024                 # Maximum sequence length
+BLOCK_SIZE=128                  # Maximum sequence length
 DATASET_TYPE="fixed"            # Types: fixed, mixed
-TRAIN_RATIO=0.9                 # Train split ratio
-VAL_RATIO=0.05                  # Validation split ratio
+TRAIN_RATIO=0.99                # Train split ratio
+VAL_RATIO=0.005                 # Validation split ratio
 
 # Model configuration
 
 ENCODING_NAME="gpt2"            # Tiktoken encoding name
 MODEL="lstm"                    # Choices: lstm, kgram_mlp, transformer
-EMBED_SIZE=1024                 # Embedding dimension
-HIDDEN_SIZE=1024                # Hidden layer dimension
+EMBED_SIZE=1024                 # Embedding dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
+HIDDEN_SIZE=1024                # Hidden layer dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
 K=3                             # Sliding window size for k-gram MLP
 CHUNK_SIZE=1                    # Process k-gram timesteps in micro-batches
 NUM_INNER_LAYERS=1              # Number of (Linear->SiLU) blocks for k-gram MLP
@@ -25,7 +25,7 @@ EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: f
 # Training configuration
 
 CHECKPOINT=""                   # Path to model checkpoint to resume training (empty = start fresh)
-BATCH_SIZE=16                   # Batch size
+BATCH_SIZE=64                   # Batch size
 NUM_EPOCHS=20                   # Number of training epochs
 LEARNING_RATE=3e-4              # Learning rate
 OPTIMIZER_CLASS="adamw"         # Choices: adamw, adam, sgd
@@ -56,7 +56,7 @@ MONOSEMANTIC_ANALYSIS=true      # If true, run monosemantic analysis
 USE_WANDB=true                  # Enable W&B experiment tracking
 WANDB_ENTITY="pico-llm"         # W&B entity name (leave empty for default)
 WANDB_PROJECT="training"        # W&B project name
-WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated)
+WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated) -- change this
 
 # Hugging Face Hub Configuration
 
