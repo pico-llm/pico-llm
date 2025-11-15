@@ -49,21 +49,36 @@ def monosemantic_analysis_for_token(token_id: int, model: nn.Module, enc: tiktok
     Returns:
         list: List of tuples containing (distance, token_id) of nearest neighbors.
     """
-    if not hasattr(model, "embedding") and not hasattr(model, "token_embedding"):
-        raise ValueError("Model does not support token embeddings for monosemantic analysis.")
-
-    embedding_layer = model.embedding if hasattr(model, "embedding") else model.token_embedding
+    # check if this is a one-hot KGramMLP model
+    is_onehot_kgram = (
+        hasattr(model, "embedding_type")
+        and model.embedding_type == "onehot"
+        and hasattr(model, "net")
+        and isinstance(model.net, nn.Sequential)
+    )
     vocab_size = enc.n_vocab
     device = next(model.parameters()).device
     with torch.no_grad():
-        # get the embedding vector for the given token
-        token_tensor = torch.tensor([token_id], dtype=torch.long, device=device)
-        token_embedding = embedding_layer(token_tensor).squeeze(0)  # shape (embed_size,)
+        if is_onehot_kgram:
+            # get the last layer
+            last_layer = model.net[-1]
+            if not isinstance(last_layer, nn.Linear):
+                raise ValueError("Expected last layer to be nn.Linear for one-hot model analysis.")
+            # use the last layer weights as embeddings
+            all_embeddings = last_layer.weight  # shape (vocab_size, embed_size)
+            token_embedding = all_embeddings[token_id]  # shape (embed_size,)
+        elif hasattr(model, "embedding") or hasattr(model, "token_embedding"):
+            embedding_layer = model.embedding if hasattr(model, "embedding") else model.token_embedding
+            # get the embedding vector for the given token
+            token_tensor = torch.tensor([token_id], dtype=torch.long, device=device)
+            token_embedding = embedding_layer(token_tensor).squeeze(0)  # shape (embed_size,)
+            # get all embeddings
+            all_token_ids = torch.arange(vocab_size, dtype=torch.long, device=device)
+            all_embeddings = embedding_layer(all_token_ids)  # shape (vocab_size, embed_size)
+        else:
+            raise ValueError("Model does not support token embeddings for monosemantic analysis.")
         # normalize for cosine similarity
         token_embedding = torch.nn.functional.normalize(token_embedding, dim=0)
-        # get all embeddings
-        all_token_ids = torch.arange(vocab_size, dtype=torch.long, device=device)
-        all_embeddings = embedding_layer(all_token_ids)  # shape (vocab_size, embed_size)
         all_embeddings = torch.nn.functional.normalize(all_embeddings, dim=1)
         # compute cosine similarities
         similarities = torch.matmul(all_embeddings, token_embedding)  # shape (vocab_size,)
