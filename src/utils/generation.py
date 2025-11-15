@@ -49,10 +49,10 @@ def monosemantic_analysis_for_token(token_id: int, model: nn.Module, enc: tiktok
     Returns:
         list: List of tuples containing (distance, token_id) of nearest neighbors.
     """
-    if not hasattr(model, "embedding"):
+    if not hasattr(model, "embedding") and not hasattr(model, "token_embedding"):
         raise ValueError("Model does not support token embeddings for monosemantic analysis.")
 
-    embedding_layer = model.embedding
+    embedding_layer = model.embedding if hasattr(model, "embedding") else model.token_embedding
     vocab_size = enc.n_vocab
     device = next(model.parameters()).device
     with torch.no_grad():
