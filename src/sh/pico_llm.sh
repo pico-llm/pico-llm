@@ -22,7 +22,6 @@ DROPOUT=0.1                     # Dropout rate for Transformer
 EMBED_SIZE=1024                 # Embedding dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
 HIDDEN_SIZE=1024                # Hidden layer dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
 K=3                             # Sliding window size for k-gram MLP
-CHUNK_SIZE=1                    # Process k-gram timesteps in micro-batches
 NUM_INNER_LAYERS=1              # Number of (Linear->SiLU) blocks for k-gram MLP
 EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: full, scaled, onehot
 
@@ -111,7 +110,6 @@ CMD="$CMD --norm $NORM"
 CMD="$CMD --dropout $DROPOUT"
 CMD="$CMD --num-inner-layers $NUM_INNER_LAYERS"
 CMD="$CMD --k $K"
-CMD="$CMD --chunk-size $CHUNK_SIZE"
 CMD="$CMD --embedding-type $EMBEDDING_TYPE"
 CMD="$CMD --block-size $BLOCK_SIZE"
 CMD="$CMD --embed-size $EMBED_SIZE"

@@ -100,9 +100,6 @@ def parse_args() -> argparse.Namespace:
         help="Sliding window size for k-gram MLP. Smaller can reduce memory usage. Default=3.",
     )
     parser.add_argument(
-        "--chunk-size", type=int, default=1, help="Process k-gram timesteps in micro-batches. Default=1."
-    )
-    parser.add_argument(
         "--num-inner-layers",
         type=int,
         default=1,

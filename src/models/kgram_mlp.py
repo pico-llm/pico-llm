@@ -14,8 +14,6 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
     For each position t in [0..seq_len-1], gather the last k tokens => one-hot => MLP => logits.
     Return (seq_len, batch, vocab_size).
 
-    Potentially very large memory usage for big vocab or seq_len. chunk_size helps mitigate overhead.
-
     Note: We are going to override behavior by using Embedding layers instead of one-hot encodings.
     """
 
@@ -25,7 +23,6 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
         k: int = 3,
         embed_size: int = 1024,
         num_inner_layers: int = 1,
-        chunk_size: int = 1,
         embedding_type: Literal["full", "scaled", "onehot"] = "full",
     ) -> "KGramMLPSeqModel":
         """Initialize the k-gram MLP-based sequence model.
@@ -35,7 +32,6 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
             k (int): Number of previous tokens to consider.
             embed_size (int): Dimension of the embedding layer.
             num_inner_layers (int): Number of inner layers in the MLP.
-            chunk_size (int): Number of time steps to process in one chunk.
             embedding_type (str): Mode of input representation. Options are "full", "scaled", "onehot".
 
         Returns:
@@ -46,7 +42,6 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
         self.vocab_size = vocab_size
         self.embed_size = embed_size
         self.num_inner_layers = num_inner_layers
-        self.chunk_size = chunk_size
         self.embedding_type = embedding_type
 
         if self.embedding_type == "onehot":
