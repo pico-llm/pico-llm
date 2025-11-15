@@ -99,9 +99,7 @@ class TransformerBlock(nn.Module):
         """
         # Create causal mask
         seq_len = x.size(1)
-        causal_mask = torch.nn.Transformer.generate_square_subsequent_mask(
-            seq_len, device=x.device, dtype=x.dtype
-        )
+        causal_mask = torch.nn.Transformer.generate_square_subsequent_mask(seq_len, device=x.device, dtype=x.dtype)
         if self.norm == "prenorm":
             # Pre-norm: norm before attention/FF (LLaMA style)
             x_norm = self.norm1(x)
