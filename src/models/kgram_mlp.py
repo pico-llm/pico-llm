@@ -85,38 +85,40 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
             torch.Tensor: Output logits of shape (seq_len, batch, vocab_size).
         """
         seq_len, batch_size = tokens_seq.shape
-        outputs = []
+        device = tokens_seq.device
 
-        start = 0
-        while start < seq_len:
-            end = min(start + self.chunk_size, seq_len)
-            block_outputs = []
-            for t in range(start, end):
-                batch_logits = []
-                for b in range(batch_size):
-                    if t < self.k:
-                        needed = self.k - t
-                        context_ids = [0] * needed + tokens_seq[:t, b].tolist()
-                    else:
-                        context_ids = tokens_seq[t - self.k : t, b].tolist()
+        # prepend padding tokens for positions < k
+        # shape: (k + seq_len, batch)
+        padded_tokens = torch.cat([torch.zeros(self.k, batch_size, dtype=torch.long, device=device), tokens_seq], dim=0)
 
-                    # convert context_ids to embeddings or one-hot
-                    context_tensor = torch.tensor(context_ids, dtype=torch.long, device=tokens_seq.device)
-                    if self.embedding is None:
-                        # one-hot mode
-                        context_embeddings = F.one_hot(
-                            context_tensor, num_classes=self.vocab_size
-                        ).float()  # (k, vocab_size)
-                    else:
-                        # embedding mode
-                        context_embeddings = self.embedding(context_tensor)  # (k, embed_size)
-                    context_flat = context_embeddings.flatten().unsqueeze(0)  # (1, k * dim)
-                    logits_b = self.net(context_flat)  # (1, vocab_size)
-                    batch_logits.append(logits_b)
-                block_outputs.append(torch.cat(batch_logits, dim=0).unsqueeze(0))  # (1, batch, vocab_size)
+        # create index tensor for gathering k-grams
+        # for each position t in original sequence, we want the last k tokens before position t
+        # original position t maps to padded position t+k (since we prepended k zeros)
+        # we want padded positions [t, t+k) which gives us the k tokens ending just before position t
+        # create indices: for each t, we want positions [t, t+1, ..., t+k-1] in padded
+        t_indices = torch.arange(seq_len, device=device)[:, None]  # (seq_len, 1)
+        k_offsets = torch.arange(self.k, device=device)[None, :]  # (1, k)
+        indices = (t_indices + k_offsets)[:, None, :]  # (seq_len, 1, k)
 
-            block_outputs = torch.cat(block_outputs, dim=0)  # (chunk_size, batch, vocab_size)
-            outputs.append(block_outputs)
-            start = end
+        # gather k-grams: (seq_len, k, batch) -> transpose to (seq_len, batch, k)
+        context_tokens = padded_tokens[indices].squeeze(1).transpose(1, 2)  # (seq_len, batch, k)
 
-        return torch.cat(outputs, dim=0)  # (seq_len, batch, vocab_size)
+        # flatten for processing: (seq_len * batch, k)
+        context_flat = context_tokens.reshape(seq_len * batch_size, self.k)
+
+        # apply embeddings or one-hot encoding
+        if self.embedding is None:
+            # one-hot mode: (seq_len * batch, k * vocab_size)
+            context_embeddings = F.one_hot(context_flat, num_classes=self.vocab_size).float()
+        else:
+            # embedding mode: (seq_len * batch, k * embed_size)
+            context_embeddings = self.embedding(context_flat)
+
+        # flatten k-gram dimensions: (seq_len * batch, k * embed_size)
+        context_input = context_embeddings.reshape(seq_len * batch_size, -1)
+
+        # process through MLP: (seq_len * batch, vocab_size)
+        logits_flat = self.net(context_input)
+
+        # reshape back to (seq_len, batch, vocab_size)
+        return logits_flat.reshape(seq_len, batch_size, self.vocab_size)
