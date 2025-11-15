@@ -103,13 +103,14 @@ class KGramMLPSeqModel(nn.Module, PyTorchModelHubMixin):
 
         # apply embeddings or one-hot encoding
         if self.embedding is None:
-            # one-hot mode: (seq_len * batch, k * vocab_size)
+            # one-hot mode: (seq_len * batch, k, vocab_size)
             context_embeddings = F.one_hot(context_flat, num_classes=self.vocab_size).float()
         else:
-            # embedding mode: (seq_len * batch, k * embed_size)
+            # embedding mode: (seq_len * batch, k, embed_size)
             context_embeddings = self.embedding(context_flat)
 
-        # flatten k-gram dimensions: (seq_len * batch, k * embed_size)
+        # flatten k-gram dimensions: (seq_len * batch, k * dim)
+        # where dim is vocab_size (one-hot) or embed_size (embedding)
         context_input = context_embeddings.reshape(seq_len * batch_size, -1)
 
         # process through MLP: (seq_len * batch, vocab_size)
