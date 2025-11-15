@@ -76,6 +76,13 @@ def parse_args() -> argparse.Namespace:
         help="Normalization style for Transformer blocks: 'prenorm' (default) or 'postnorm'.",
     )
     parser.add_argument(
+        "--pos-embed-type",
+        type=str,
+        choices=["abs", "rope"],
+        default="abs",
+        help="Type of positional embeddings for Transformer: 'abs' (absolute learned, default) or 'rope' (RoPE).",
+    )
+    parser.add_argument(
         "--dropout",
         type=float,
         default=0.1,
