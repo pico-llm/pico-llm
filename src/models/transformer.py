@@ -97,15 +97,20 @@ class TransformerBlock(nn.Module):
         Returns:
             torch.Tensor: Output tensor.
         """
+        # Create causal mask
+        seq_len = x.size(1)
+        causal_mask = torch.nn.Transformer.generate_square_subsequent_mask(
+            seq_len, device=x.device, dtype=x.dtype
+        )
         if self.norm == "prenorm":
             # Pre-norm: norm before attention/FF (LLaMA style)
             x_norm = self.norm1(x)
-            attn_out, _ = self.attn(x_norm, x_norm, x_norm, is_causal=True)
+            attn_out, _ = self.attn(x_norm, x_norm, x_norm, attn_mask=causal_mask)
             x = x + self.dropout(attn_out)
             x = x + self.ff(self.norm2(x))
         else:
             # Post-norm: norm after attention/FF (original Transformer)
-            attn_out, _ = self.attn(x, x, x, is_causal=True)
+            attn_out, _ = self.attn(x, x, x, attn_mask=causal_mask)
             x = self.norm1(x + self.dropout(attn_out))
             ff_out = self.ff(x)
             x = self.norm2(x + ff_out)
