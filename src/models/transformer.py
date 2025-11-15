@@ -125,6 +125,7 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
         embed_size: int,
         n_heads: int,
         n_blocks: int,
+        pos_embed_type: str = "abs",
         block_size: int = 1024,
         norm: str = "prenorm",
         dropout: float = 0.1,
@@ -136,6 +137,7 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
             embed_size (int): Embedding dimension (d_model).
             n_heads (int): Number of attention heads.
             n_blocks (int): Number of transformer blocks.
+            pos_embed_type (str): Type of positional embeddings. Options are "abs" (absolute), "rope" (RoPE).
             block_size (int): Maximum sequence length for positional embeddings.
             norm (str): Normalization style ('prenorm' or 'postnorm').
             dropout (float): Dropout rate.
@@ -147,6 +149,10 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
 
         self.d_model = embed_size
         self.norm_type = norm
+        self.pos_embed_type = pos_embed_type
+
+        # TODO: implement RoPE for positional embeddings
+        # you will need to implement the corresponding branch in the forward pass
 
         # Token and position embeddings
         self.token_embedding = nn.Embedding(vocab_size, embed_size)
