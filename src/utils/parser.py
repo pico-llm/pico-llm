@@ -57,6 +57,31 @@ def parse_args() -> argparse.Namespace:
         help="Model architecture to use. Default='lstm'.",
     )
     parser.add_argument(
+        "--n-heads",
+        type=int,
+        default=12,
+        help="Number of attention heads for Transformer (default=4).",
+    )
+    parser.add_argument(
+        "--n-blocks",
+        type=int,
+        default=12,
+        help="Number of Transformer blocks (default=2).",
+    )
+    parser.add_argument(
+        "--norm",
+        type=str,
+        choices=["prenorm", "postnorm"],
+        default="prenorm",
+        help="Normalization style for Transformer blocks: 'prenorm' (default) or 'postnorm'.",
+    )
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.1,
+        help="Dropout rate for Transformer (default=0.1).",
+    )
+    parser.add_argument(
         "--embed-size",
         type=int,
         default=1024,
