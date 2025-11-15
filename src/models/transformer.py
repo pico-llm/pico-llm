@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as functional
+import torch.nn.functional as F  # noqa: N812
 from huggingface_hub import PyTorchModelHubMixin
 
 
@@ -42,6 +42,8 @@ class FeedForward(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1) -> None:
         """Initialize FeedForward.
 
+        The inner dimension is set to 4 times the model dimension, following GPT-2 architecture.
+
         Args:
             d_model (int): Dimension of the model.
             dropout (float): Dropout rate.
@@ -61,7 +63,7 @@ class FeedForward(nn.Module):
             torch.Tensor: Output tensor.
         """
         x = self.fc1(x)
-        x = functional.gelu(x)
+        x = F.gelu(x)
         x = self.fc2(x)
         return self.dropout(x)
 
@@ -69,43 +71,44 @@ class FeedForward(nn.Module):
 class TransformerBlock(nn.Module):
     """GPT-2 style transformer block with configurable normalization."""
 
-    def __init__(self, d_model: int, n_heads: int, dropout: float = 0.1, pre_norm: bool = True) -> None:
+    def __init__(self, d_model: int, n_heads: int, dropout: float = 0.1, norm: str = "prenorm") -> None:
         """Initialize TransformerBlock.
 
         Args:
             d_model (int): Dimension of the model.
             n_heads (int): Number of attention heads.
             dropout (float): Dropout rate.
-            pre_norm (bool): If True, use pre-norm. If False, use post-norm.
+            norm (str): Normalization type ('prenorm' or 'postnorm').
         """
         super().__init__()
-        self.pre_norm = pre_norm
+        self.norm = norm
         self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
         self.ff = FeedForward(d_model, dropout)
-        self.norm1 = RMSNorm(d_model)  # changed from LayerNorm to RMSNorm
+        self.norm1 = RMSNorm(d_model)
         self.norm2 = RMSNorm(d_model)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass.
 
         Args:
             x (torch.Tensor): Input tensor.
-            mask (torch.Tensor, optional): Attention mask.
 
         Returns:
             torch.Tensor: Output tensor.
         """
-        if self.pre_norm:
-            # Pre-norm: norm before attention/FF (GPT-2, LLaMA style)
-            attn_out, _ = self.attn(self.norm1(x), self.norm1(x), self.norm1(x), attn_mask=mask, need_weights=False)
+        if self.norm == "prenorm":
+            # Pre-norm: norm before attention/FF (LLaMA style)
+            x_norm = self.norm1(x)
+            attn_out, _ = self.attn(x_norm, x_norm, x_norm, is_causal=True)
             x = x + self.dropout(attn_out)
             x = x + self.ff(self.norm2(x))
         else:
             # Post-norm: norm after attention/FF (original Transformer)
-            attn_out, _ = self.attn(x, x, x, attn_mask=mask, need_weights=False)
+            attn_out, _ = self.attn(x, x, x, is_causal=True)
             x = self.norm1(x + self.dropout(attn_out))
-            x = self.norm2(x + self.ff(x))
+            ff_out = self.ff(x)
+            x = self.norm2(x + ff_out)
 
         return x
 
@@ -140,16 +143,19 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
         super().__init__()
 
         self.d_model = embed_size
-        self.pre_norm = norm == "prenorm"
+        self.norm_type = norm
 
         # Token and position embeddings
         self.token_embedding = nn.Embedding(vocab_size, embed_size)
         self.position_embedding = nn.Embedding(block_size, embed_size)
         self.dropout = nn.Dropout(dropout)
 
+        # Cache position IDs as a buffer (not a parameter, won't be trained)
+        self.register_buffer("position_ids", torch.arange(block_size), persistent=False)
+
         # Transformer blocks
         self.blocks = nn.ModuleList(
-            [TransformerBlock(embed_size, n_heads, dropout=dropout, pre_norm=self.pre_norm) for _ in range(n_blocks)]
+            [TransformerBlock(embed_size, n_heads, dropout=dropout, norm=self.norm_type) for _ in range(n_blocks)]
         )
 
         # Final norm
@@ -180,22 +186,19 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
         Returns:
             torch.Tensor: Output logits of shape (batch, seq_len, vocab_size)
         """
-        batch_size, seq_len = input_ids.shape
-
-        # Create causal mask for autoregressive generation
-        mask = torch.triu(torch.ones(seq_len, seq_len, device=input_ids.device), diagonal=1).bool()
+        _, seq_len = input_ids.shape
 
         # Embeddings
-        positions = torch.arange(seq_len, device=input_ids.device).unsqueeze(0)
+        positions = self.position_ids[:seq_len].unsqueeze(0)
         x = self.token_embedding(input_ids) + self.position_embedding(positions)
         x = self.dropout(x)
 
         # Apply transformer blocks
         for block in self.blocks:
-            x = block(x, mask)
+            x = block(x)
 
         # Final norm (always apply for pre-norm, optional for post-norm)
-        if self.pre_norm:
+        if self.norm_type == "prenorm":
             x = self.norm(x)
 
         return self.lm_head(x)
