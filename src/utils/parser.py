@@ -78,9 +78,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pos-embed-type",
         type=str,
-        choices=["abs", "rope"],
-        default="abs",
-        help="Type of positional embeddings for Transformer: 'abs' (absolute learned, default) or 'rope' (RoPE).",
+        choices=["absolute", "rotary"],
+        default=None,
+        help="Type of positional embeddings for Transformer: 'absolute', 'rotary' (RoPE), or \
+            None for no positional embeddings. Default=None.",
     )
     parser.add_argument(
         "--dropout",
