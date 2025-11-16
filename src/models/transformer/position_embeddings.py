@@ -1,7 +1,6 @@
 """Position embedding implementations for Transformer models."""
 
 import inspect
-from typing import Dict, Tuple, Type
 
 import torch
 import torch.nn as nn
@@ -90,7 +89,7 @@ class RotaryPositionEmbedding(PositionEmbeddingBase):
         position_ids: torch.LongTensor,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute cos and sin tables for given positions.
 
         Args:
@@ -125,37 +124,24 @@ class RotaryPositionEmbedding(PositionEmbeddingBase):
         """
         if x.dim() != 3:
             raise ValueError(
-                f"RotaryPositionEmbedding expects x to be 3D "
-                f"(batch, seq_len, dim), got shape {tuple(x.shape)}"
+                f"RotaryPositionEmbedding expects x to be 3D (batch, seq_len, dim), got shape {tuple(x.shape)}"
             )
 
         batch_size, seq_len, dim = x.shape
         if dim != self.dim:
-            raise ValueError(
-                f"Last dimension of x ({dim}) does not match "
-                f"RotaryPositionEmbedding dim ({self.dim})."
-            )
+            raise ValueError(f"Last dimension of x ({dim}) does not match RotaryPositionEmbedding dim ({self.dim}).")
 
         # Normalize position_ids to shape (batch, seq_len)
         if position_ids.dim() == 1:
             if position_ids.size(0) != seq_len:
-                raise ValueError(
-                    "When position_ids is 1D, its length must match seq_len."
-                )
+                raise ValueError("When position_ids is 1D, its length must match seq_len.")
             # Broadcast same positions across the batch
             position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
         elif position_ids.dim() == 2:
-            if (
-                position_ids.size(0) != batch_size
-                or position_ids.size(1) != seq_len
-            ):
-                raise ValueError(
-                    "position_ids must have shape (batch, seq_len) when 2D."
-                )
+            if position_ids.size(0) != batch_size or position_ids.size(1) != seq_len:
+                raise ValueError("position_ids must have shape (batch, seq_len) when 2D.")
         else:
-            raise ValueError(
-                "position_ids must be 1D (seq_len,) or 2D (batch, seq_len)."
-            )
+            raise ValueError("position_ids must be 1D (seq_len,) or 2D (batch, seq_len).")
 
         cos, sin = self._get_cos_sin(
             position_ids=position_ids,
@@ -166,16 +152,13 @@ class RotaryPositionEmbedding(PositionEmbeddingBase):
         # Reshape x into pairs: (batch, seq_len, dim//2, 2)
         x_reshaped = x.view(batch_size, seq_len, self.dim // 2, 2)
         x_even = x_reshaped[..., 0]  # (batch, seq_len, dim//2)
-        x_odd = x_reshaped[..., 1]   # (batch, seq_len, dim//2)
+        x_odd = x_reshaped[..., 1]  # (batch, seq_len, dim//2)
 
         # Apply rotary transformation
         rotated_even = x_even * cos - x_odd * sin
         rotated_odd = x_odd * cos + x_even * sin
 
-        x_out = torch.stack((rotated_even, rotated_odd), dim=-1).view(
-            batch_size, seq_len, dim
-        )
-        return x_out
+        return torch.stack((rotated_even, rotated_odd), dim=-1).view(batch_size, seq_len, dim)
 
     def apply_positional_embeddings(
         self,
@@ -230,14 +213,14 @@ class NoPositionEmbedding(PositionEmbeddingBase):
         return token_embeddings
 
 
-POSITION_EMBEDDING_REGISTRY: Dict[str, Type[PositionEmbeddingBase]] = {
+POSITION_EMBEDDING_REGISTRY: dict[str, type[PositionEmbeddingBase]] = {
     "absolute": AbsolutePositionEmbedding,
     "rotary": RotaryPositionEmbedding,
     "none": NoPositionEmbedding,
 }
 
 
-def get_position_embedding_cls(name: str) -> Type[PositionEmbeddingBase]:
+def get_position_embedding_cls(name: str) -> type[PositionEmbeddingBase]:
     """Return the positional embedding class registered under `name`."""
     try:
         return POSITION_EMBEDDING_REGISTRY[name]
@@ -246,7 +229,7 @@ def get_position_embedding_cls(name: str) -> Type[PositionEmbeddingBase]:
         raise ValueError(f"Unknown positional embedding '{name}'. Available: {available}") from exc
 
 
-def _construct_pos_embedding_args(cls: Type[PositionEmbeddingBase], kwargs: Dict[str, object]) -> Dict[str, object]:
+def _construct_pos_embedding_args(cls: type[PositionEmbeddingBase], kwargs: dict[str, object]) -> dict[str, object]:
     """Filter kwargs to only those accepted by the class initializer."""
     signature = inspect.signature(cls.__init__)
     param_names = set(signature.parameters.keys())

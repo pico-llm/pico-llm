@@ -1,6 +1,6 @@
 """Implementation of a Transformer model for text generation."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -54,7 +54,7 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
 
         # Token and position embeddings
         self.token_embedding = nn.Embedding(vocab_size, embed_size)
-        embedding_kwargs: Dict[str, Any] = {
+        embedding_kwargs: dict[str, Any] = {
             "block_size": block_size,
             "embed_size": embed_size,
         }
@@ -114,4 +114,3 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
             x = self.norm(x)
 
         return self.lm_head(x)
-

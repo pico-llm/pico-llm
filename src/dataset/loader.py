@@ -90,34 +90,36 @@ def _load_tinystories_parallel(block_size: int, enc: tiktoken.Encoding) -> list[
     """
     print("Loading TinyStories from huggingface...")
     dataset = load_dataset("roneneldan/TinyStories", split="train")
-    
+
     # Get encoding name to pass to workers (tiktoken.Encoding objects are not picklable)
     encoding_name = enc.name
-    
+
     # Determine number of workers
     num_workers = len(os.sched_getaffinity(0)) or 1
     print(f"Using {num_workers} workers for parallel tokenization...")
-    
+
     # Create partial function with fixed parameters
     tokenize_func = partial(_tokenize_sample, block_size=block_size, encoding_name=encoding_name)
-    
+
     tinystories_seqs = list()
-    
+
     # Process in parallel while maintaining order
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         # Use map to maintain order and chunksize for efficiency
         chunksize = max(1, len(dataset) // (num_workers * 4))
-        results = list(tqdm(
-            executor.map(tokenize_func, dataset, chunksize=chunksize),
-            total=len(dataset),
-            desc="Tokenizing TinyStories"
-        ))
-    
+        results = list(
+            tqdm(
+                executor.map(tokenize_func, dataset, chunksize=chunksize),
+                total=len(dataset),
+                desc="Tokenizing TinyStories",
+            )
+        )
+
     # Filter out None values (empty sequences)
     tinystories_seqs = [tokens for tokens in results if tokens is not None]
-    
+
     print(f"TinyStories sequences: {len(tinystories_seqs)}")
-    
+
     return tinystories_seqs
 
 
