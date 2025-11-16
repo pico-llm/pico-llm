@@ -293,7 +293,9 @@ class BaseTrainer(ModelHubMixin):
         if self.wandb_writer is not None:
             if self.wandb_table is None:
                 columns = ["step", "top_p", "prompt", "completion", "annotation"]
-                self.wandb_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
+                self.wandb_table = wandb.Table(
+                    columns=columns, log_mode="INCREMENTAL", optional=True, allow_mixed_types=True
+                )
             for completion, annotation, p in zip(completions, annotations, top_p):
                 self.wandb_table.add_data(step, p, prompt, completion, annotation)
             self.wandb_writer.log({"examples": self.wandb_table}, step=step)

@@ -185,7 +185,8 @@ class Trainer(BaseTrainer):
 
         # training loop
         for epoch in range(num_epochs):
-            total_epoch_loss = 0.0
+            total_epoch_train_loss = 0.0
+            total_epoch_val_loss = 0.0
             epoch_step = 0
             for batch_tokens in train_dataloader:
                 # track steps
@@ -211,9 +212,9 @@ class Trainer(BaseTrainer):
 
                 # backward pass
                 loss.backward()
-                total_epoch_loss += loss.item()
-                log_dict["loss"] = loss.item()
-                log_dict["perplexity"] = torch.exp(loss).item()
+                total_epoch_train_loss += loss.item()
+                log_dict["train_loss"] = loss.item()
+                log_dict["train_perplexity"] = torch.exp(loss).item()
 
                 # clip gradients
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
@@ -254,12 +255,22 @@ class Trainer(BaseTrainer):
                         monosemantic_analysis=monosemantic_analysis,
                     )
 
+                    # run validation if provided
+                    val_metrics = None
+                    if val_dataloader is not None:
+                        val_metrics = self.evaluate(val_dataloader, device)
+                        log_dict["val_loss"] = val_metrics["loss"]
+                        log_dict["val_perplexity"] = val_metrics["perplexity"]
+                        total_epoch_val_loss += val_metrics["loss"]
+
                     log_str = json.dumps(
                         {
                             "epoch": float(f"{epoch + (epoch_step / steps_per_epoch):.2f}"),
                             "step": global_step,
-                            "loss": loss.item(),
-                            "perplexity": torch.exp(loss).item(),
+                            "train_loss": loss.item(),
+                            "train_perplexity": torch.exp(loss).item(),
+                            "val_loss": val_metrics["loss"] if val_metrics is not None else None,
+                            "val_perplexity": val_metrics["perplexity"] if val_metrics is not None else None,
                             "lr": self.optimizer.param_groups[0]["lr"],
                         }
                     )
@@ -298,50 +309,34 @@ class Trainer(BaseTrainer):
                         )
 
             # end of epoch logging
-            avg_epoch_loss = total_epoch_loss / epoch_step
-            avg_epoch_perplexity = torch.exp(torch.tensor(avg_epoch_loss)).item()
+            avg_epoch_train_loss = total_epoch_train_loss / epoch_step
+            avg_epoch_train_perplexity = torch.exp(torch.tensor(avg_epoch_train_loss)).item()
             log_dict_epoch = {
                 "epoch": epoch + 1,
                 "step": global_step,
-                "train_loss": avg_epoch_loss,
-                "train_perplexity": avg_epoch_perplexity,
+                "avg_train_loss": avg_epoch_train_loss,
+                "avg_train_perplexity": avg_epoch_train_perplexity,
                 "lr": self.optimizer.param_groups[0]["lr"],
             }
-            # evaluate on validation set if provided
-            val_metrics = None
             if val_dataloader is not None:
-                val_metrics = self.evaluate(val_dataloader, device)
-                log_dict_epoch.update(
-                    {
-                        "val_loss": val_metrics["loss"],
-                        "val_perplexity": val_metrics["perplexity"],
-                    }
-                )
+                avg_epoch_val_loss = total_epoch_val_loss / epoch_step
+                avg_epoch_val_perplexity = torch.exp(torch.tensor(avg_epoch_val_loss)).item()
+                log_dict_epoch["avg_val_loss"] = avg_epoch_val_loss
+                log_dict_epoch["avg_val_perplexity"] = avg_epoch_val_perplexity
 
             log_str = json.dumps(log_dict_epoch)
             progress_bar.write(log_str)
             if self.wandb_writer is not None:
-                wandb_log_dict = {
-                    "train_loss": avg_epoch_loss,
-                    "train_perplexity": avg_epoch_perplexity,
-                }
-                if val_metrics is not None:
-                    wandb_log_dict.update(
-                        {
-                            "val_loss": val_metrics["loss"],
-                            "val_perplexity": val_metrics["perplexity"],
-                        }
-                    )
-                self.write_losses_to_wandb(global_step, wandb_log_dict)
+                self.write_losses_to_wandb(global_step, log_dict_epoch)
 
             # save best model checkpoint based on specified metric
             if save_best and best_loss is not None:
                 if loss_metric_for_best_model == "train":
-                    current_loss = avg_epoch_loss
-                elif loss_metric_for_best_model == "val" and val_metrics is not None:
-                    current_loss = val_metrics["loss"]
+                    current_loss = avg_epoch_train_loss
+                elif loss_metric_for_best_model == "val":
+                    current_loss = avg_epoch_val_loss
                 else:
-                    raise ValueError("Invalid loss_metric_for_best_model or missing val_dataloader.")
+                    raise ValueError("Invalid loss_metric_for_best_model.")
 
                 if current_loss < best_loss:
                     best_loss = current_loss

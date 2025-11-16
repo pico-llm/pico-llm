@@ -5,11 +5,11 @@ set -e
 # Data source configuration
 
 INPUT_FILES=()                  # Add file paths as array elements, e.g., ("data/text1.txt" "data/text2.txt")
-DATASET_SUBSET_SIZE=1000000     # Number of sequences (empty = use all data)
+DATASET_SUBSET_SIZE=100000     # Number of sequences (empty = use all data)
 BLOCK_SIZE=128                  # Maximum sequence length
 DATASET_TYPE="fixed"            # Types: fixed, mixed
-TRAIN_RATIO=0.98                # Train split ratio
-VAL_RATIO=0.01                  # Validation split ratio
+TRAIN_RATIO=0.9                # Train split ratio
+VAL_RATIO=0.05                  # Validation split ratio
 
 # Model configuration
 
@@ -38,8 +38,8 @@ WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 
 # Logging and checkpointing
 
-LOG_INTERVAL_STEPS=500              # Log training loss every N steps
-SAVE_INTERVAL_STEPS=5000            # Save model checkpoint every N steps
+LOG_INTERVAL_STEPS=100              # Log training loss every N steps
+SAVE_INTERVAL_STEPS=2500            # Save model checkpoint every N steps
 SAVE_DIR="./saved_models/lstm"      # Directory to save checkpoints
 SAVE_LATEST=true                    # Overwrite latest checkpoint instead of saving per step
 SAVE_BEST=true                      # Track and save best model based on training loss
