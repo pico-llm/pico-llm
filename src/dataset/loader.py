@@ -101,8 +101,6 @@ def _load_tinystories_parallel(block_size: int, enc: tiktoken.Encoding) -> list[
     # Create partial function with fixed parameters
     tokenize_func = partial(_tokenize_sample, block_size=block_size, encoding_name=encoding_name)
 
-    tinystories_seqs = list()
-
     # Process in parallel while maintaining order
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         # Use map to maintain order and chunksize for efficiency
