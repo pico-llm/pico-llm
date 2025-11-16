@@ -187,6 +187,7 @@ class Trainer(BaseTrainer):
         for epoch in range(num_epochs):
             total_epoch_train_loss = 0.0
             total_epoch_val_loss = 0.0
+            num_val_runs = 0
             epoch_step = 0
             for batch_tokens in train_dataloader:
                 # track steps
@@ -258,6 +259,7 @@ class Trainer(BaseTrainer):
                     # run validation if provided
                     val_metrics = None
                     if val_dataloader is not None:
+                        num_val_runs += 1
                         val_metrics = self.evaluate(val_dataloader, device)
                         log_dict["val_loss"] = val_metrics["loss"]
                         log_dict["val_perplexity"] = val_metrics["perplexity"]
@@ -319,7 +321,7 @@ class Trainer(BaseTrainer):
                 "lr": self.optimizer.param_groups[0]["lr"],
             }
             if val_dataloader is not None:
-                avg_epoch_val_loss = total_epoch_val_loss / epoch_step
+                avg_epoch_val_loss = total_epoch_val_loss / num_val_runs
                 avg_epoch_val_perplexity = torch.exp(torch.tensor(avg_epoch_val_loss)).item()
                 log_dict_epoch["avg_val_loss"] = avg_epoch_val_loss
                 log_dict_epoch["avg_val_perplexity"] = avg_epoch_val_perplexity
@@ -333,7 +335,7 @@ class Trainer(BaseTrainer):
             if save_best and best_loss is not None:
                 if loss_metric_for_best_model == "train":
                     current_loss = avg_epoch_train_loss
-                elif loss_metric_for_best_model == "val":
+                elif loss_metric_for_best_model == "val" and val_dataloader is not None:
                     current_loss = avg_epoch_val_loss
                 else:
                     raise ValueError("Invalid loss_metric_for_best_model.")
