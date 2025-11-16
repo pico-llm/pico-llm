@@ -1,5 +1,9 @@
 """Data loading utilities for pico-llm."""
 
+import os
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+
 import tiktoken
 import torch
 from datasets import load_dataset
@@ -52,6 +56,68 @@ def _load_tinystories(block_size: int, enc: tiktoken.Encoding) -> list[list[int]
             tinystories_seqs.append(tokens)
     print(f"TinyStories sequences: {len(tinystories_seqs)}")
 
+    return tinystories_seqs
+
+
+def _tokenize_sample(sample: dict, block_size: int, encoding_name: str) -> list[int] | None:
+    """Tokenize a single sample from the dataset.
+
+    Args:
+        sample (dict): Dataset sample containing 'text' field.
+        block_size (int): Maximum sequence length.
+        encoding_name (str): Name of the tiktoken encoding to use.
+
+    Returns:
+        list[int] | None: Tokenized sequence or None if empty.
+    """
+    # Create encoding in worker process (tiktoken.Encoding is not picklable)
+    enc = tiktoken.get_encoding(encoding_name)
+    text = sample["text"]
+    tokens = enc.encode(text)
+    tokens = tokens[:block_size]
+    return tokens if len(tokens) > 0 else None
+
+
+def _load_tinystories_parallel(block_size: int, enc: tiktoken.Encoding) -> list[list[int]]:
+    """Load TinyStories dataset from HuggingFace and tokenize sequences using parallel processing.
+
+    Args:
+        block_size (int): Maximum sequence length for each example.
+        enc (tiktoken.Encoding): Tiktoken encoding instance.
+
+    Returns:
+        list[list[int]]: List of tokenized TinyStories sequences (same order as dataset).
+    """
+    print("Loading TinyStories from huggingface...")
+    dataset = load_dataset("roneneldan/TinyStories", split="train")
+    
+    # Get encoding name to pass to workers (tiktoken.Encoding objects are not picklable)
+    encoding_name = enc.name
+    
+    # Determine number of workers
+    num_workers = len(os.sched_getaffinity(0)) or 1
+    print(f"Using {num_workers} workers for parallel tokenization...")
+    
+    # Create partial function with fixed parameters
+    tokenize_func = partial(_tokenize_sample, block_size=block_size, encoding_name=encoding_name)
+    
+    tinystories_seqs = list()
+    
+    # Process in parallel while maintaining order
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # Use map to maintain order and chunksize for efficiency
+        chunksize = max(1, len(dataset) // (num_workers * 4))
+        results = list(tqdm(
+            executor.map(tokenize_func, dataset, chunksize=chunksize),
+            total=len(dataset),
+            desc="Tokenizing TinyStories"
+        ))
+    
+    # Filter out None values (empty sequences)
+    tinystories_seqs = [tokens for tokens in results if tokens is not None]
+    
+    print(f"TinyStories sequences: {len(tinystories_seqs)}")
+    
     return tinystories_seqs
 
 
@@ -115,7 +181,8 @@ def create_dataloaders(
         tuple[DataLoader, DataLoader, DataLoader]: Train, validation, and test dataloaders.
     """
     # load all sequences
-    tinystories_seqs = _load_tinystories(block_size, enc)
+    # tinystories_seqs = _load_tinystories(block_size, enc)
+    tinystories_seqs = _load_tinystories_parallel(block_size, enc)
     other_seqs = _load_input_files(input_files, block_size, enc)
 
     # combine all sequences
