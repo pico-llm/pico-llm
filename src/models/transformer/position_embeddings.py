@@ -216,7 +216,7 @@ class NoPositionEmbedding(PositionEmbeddingBase):
 POSITION_EMBEDDING_REGISTRY: dict[str, type[PositionEmbeddingBase]] = {
     "absolute": AbsolutePositionEmbedding,
     "rotary": RotaryPositionEmbedding,
-    "none": NoPositionEmbedding,
+    None: NoPositionEmbedding,
 }
 
 

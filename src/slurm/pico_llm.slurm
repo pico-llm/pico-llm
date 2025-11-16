@@ -40,7 +40,7 @@ MODEL="lstm"                    # Choices: lstm, kgram_mlp, transformer
 N_HEADS=12                      # Number of attention heads for Transformer
 N_BLOCKS=12                     # Number of Transformer blocks
 NORM="prenorm"                  # Normalization style for Transformer blocks: prenorm, postnorm
-POS_EMBED_TYPE="abs"            # Type of positional embeddings for Transformer: abs, rope
+POS_EMBED_TYPE="absolute"       # Type of positional embeddings for Transformer: absolute, rotary or None
 DROPOUT=0.1                     # Dropout rate for Transformer
 EMBED_SIZE=1024                 # Embedding dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
 HIDDEN_SIZE=1024                # Hidden layer dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
@@ -130,7 +130,6 @@ CMD="$CMD --save-interval-steps $SAVE_INTERVAL_STEPS"
 CMD="$CMD --n-heads $N_HEADS"
 CMD="$CMD --n-blocks $N_BLOCKS"
 CMD="$CMD --norm $NORM"
-CMD="$CMD --pos-embed-type $POS_EMBED_TYPE"
 CMD="$CMD --dropout $DROPOUT"
 CMD="$CMD --num-inner-layers $NUM_INNER_LAYERS"
 CMD="$CMD --k $K"
@@ -142,6 +141,11 @@ CMD="$CMD --prompt \"$PROMPT\""
 CMD="$CMD --max-new-tokens $MAX_NEW_TOKENS"
 CMD="$CMD --top-p $TOP_P"
 CMD="$CMD --save-dir $SAVE_DIR"
+
+# Add positional embedding type
+if [ -n "$POS_EMBED_TYPE" ]; then
+    CMD="$CMD --pos-embed-type $POS_EMBED_TYPE"
+fi
 
 # Add boolean flags
 if [ "$SAVE_LATEST" = true ]; then

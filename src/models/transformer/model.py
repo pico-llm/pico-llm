@@ -1,6 +1,6 @@
 """Implementation of a Transformer model for text generation."""
 
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -19,9 +19,9 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
         embed_size: int,
         n_heads: int,
         n_blocks: int,
-        pos_embed_type: str = "abs",
+        pos_embed_type: Literal["absolute", "rotary"] | None = "absolute",
         block_size: int = 1024,
-        norm: str = "prenorm",
+        norm: Literal["prenorm", "postnorm"] = "prenorm",
         dropout: float = 0.1,
     ) -> None:
         """Initialize TransformerModel.
@@ -31,7 +31,8 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
             embed_size (int): Embedding dimension (d_model).
             n_heads (int): Number of attention heads.
             n_blocks (int): Number of transformer blocks.
-            pos_embed_type (str): Type of positional embeddings. Options are "abs" (absolute), "rope" (RoPE).
+            pos_embed_type (str | None): Type of positional embedding ('absolute' or 'rotary'),
+                or None for no positional embeddings.
             block_size (int): Maximum sequence length for positional embeddings.
             norm (str): Normalization style ('prenorm' or 'postnorm').
             dropout (float): Dropout rate.
@@ -45,20 +46,13 @@ class TransformerModel(nn.Module, PyTorchModelHubMixin):
         self.norm_type = norm
         self.pos_embed_type = pos_embed_type
 
-        # Map main's parameter names to pos_embed's implementation names
-        pos_embed_mapping = {
-            "abs": "absolute",
-            "rope": "rotary",
-        }
-        pos_embedding_type = pos_embed_mapping.get(pos_embed_type, "absolute")
-
         # Token and position embeddings
         self.token_embedding = nn.Embedding(vocab_size, embed_size)
         embedding_kwargs: dict[str, Any] = {
             "block_size": block_size,
             "embed_size": embed_size,
         }
-        self.position_embedding = build_position_embedding(pos_embedding_type, **embedding_kwargs)
+        self.position_embedding = build_position_embedding(pos_embed_type, **embedding_kwargs)
         self.dropout = nn.Dropout(dropout)
 
         # Cache position IDs as a buffer (not a parameter, won't be trained)
