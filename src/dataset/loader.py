@@ -1,6 +1,6 @@
 """Data loading utilities for pico-llm."""
 
-import multiprocessing
+import os
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
@@ -33,30 +33,6 @@ def _seq_collate_fn(batch: list[torch.Tensor]) -> torch.Tensor:
         seq_len = seq.size(0)
         padded[:seq_len, i] = seq
     return padded
-
-
-def _load_tinystories(block_size: int, enc: tiktoken.Encoding) -> list[list[int]]:
-    """Load TinyStories dataset from HuggingFace and tokenize sequences.
-
-    Args:
-        block_size (int): Maximum sequence length for each example.
-        enc (tiktoken.Encoding): Tiktoken encoding instance.
-
-    Returns:
-        list[list[int]]: List of tokenized TinyStories sequences.
-    """
-    tinystories_seqs = list()
-    print("Loading TinyStories from huggingface...")
-    dataset = load_dataset("roneneldan/TinyStories", split="train")
-    for sample in tqdm(dataset, total=len(dataset), desc="Tokenizing TinyStories"):
-        text = sample["text"]
-        tokens = enc.encode(text)
-        tokens = tokens[:block_size]
-        if len(tokens) > 0:
-            tinystories_seqs.append(tokens)
-    print(f"TinyStories sequences: {len(tinystories_seqs)}")
-
-    return tinystories_seqs
 
 
 def _tokenize_sample(sample: dict, block_size: int, encoding_name: str) -> list[int] | None:
@@ -95,7 +71,7 @@ def _load_tinystories_parallel(block_size: int, enc: tiktoken.Encoding) -> list[
     encoding_name = enc.name
 
     # Determine number of workers
-    num_workers = multiprocessing.cpu_count() or 1
+    num_workers = len(os.sched_getaffinity(0)) or 1
     print(f"Using {num_workers} workers for parallel tokenization...")
 
     # Create partial function with fixed parameters
@@ -181,7 +157,6 @@ def create_dataloaders(
         tuple[DataLoader, DataLoader, DataLoader]: Train, validation, and test dataloaders.
     """
     # load all sequences
-    # tinystories_seqs = _load_tinystories(block_size, enc)
     tinystories_seqs = _load_tinystories_parallel(block_size, enc)
     other_seqs = _load_input_files(input_files, block_size, enc)
 
