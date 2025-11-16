@@ -1,6 +1,6 @@
 """Data loading utilities for pico-llm."""
 
-import os
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
@@ -95,7 +95,7 @@ def _load_tinystories_parallel(block_size: int, enc: tiktoken.Encoding) -> list[
     encoding_name = enc.name
 
     # Determine number of workers
-    num_workers = len(os.sched_getaffinity(0)) or 1
+    num_workers = multiprocessing.cpu_count() or 1
     print(f"Using {num_workers} workers for parallel tokenization...")
 
     # Create partial function with fixed parameters
