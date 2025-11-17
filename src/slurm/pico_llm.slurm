@@ -1,17 +1,16 @@
 #!/bin/bash
 
-#SBATCH --job-name=ab12057_picollm             # Update with your NYU NetID
+#SBATCH --job-name=aj4332_picollm_K1_any          # Update with your NYU NetID
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-## SBATCH --partition=a100_1
+#SBATCH --mem=96G
 #SBATCH --open-mode=append
-#SBATCH --time=4:00:00
+#SBATCH --time=3:59:00
 #SBATCH --gres=gpu:1
 #SBATCH --error=logs/%x_%j.err
 #SBATCH --output=logs/%x_%j.out
-#SBATCH --chdir=/scratch/ab12057/pico-llm       # Update with your NYU NetID
+#SBATCH --chdir=/scratch/aj4332/pico_env/pico-llm       # Update with your NYU NetID
 #SBATCH --mail-type=all
-#SBATCH --mail-user=ab12057@nyu.edu             # Update with your NYU NetID
+#SBATCH --mail-user=aj4332@nyu.edu             # Update with your NYU NetID
 
 set -e
 
@@ -22,7 +21,10 @@ echo "Current working directory: $(pwd)"
 mkdir -p logs
 
 # Activate the environment
-source .venv/bin/activate
+module purge
+
+if [ -e /dev/nvidia0 ]; then nv="--nv"; fi
+
 
 # Data source configuration
 
@@ -36,17 +38,17 @@ VAL_RATIO=0.01                  # Validation split ratio
 # Model configuration
 
 ENCODING_NAME="gpt2"            # Tiktoken encoding name
-MODEL="lstm"                    # Choices: lstm, kgram_mlp, transformer
+MODEL="kgram_mlp"                    # Choices: lstm, kgram_mlp, transformer
 N_HEADS=12                      # Number of attention heads for Transformer
 N_BLOCKS=12                     # Number of Transformer blocks
 NORM="prenorm"                  # Normalization style for Transformer blocks: prenorm, postnorm
 POS_EMBED_TYPE="absolute"       # Type of positional embeddings for Transformer: absolute, rotary or "" for None
 DROPOUT=0.1                     # Dropout rate for Transformer
-EMBED_SIZE=1024                 # Embedding dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
+EMBED_SIZE=32                 # Embedding dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
 HIDDEN_SIZE=1024                # Hidden layer dimension | Keep same for LSTM, adjust based on standard sizes for GPT2
-K=3                             # Sliding window size for k-gram MLP
+K=1                             # Sliding window size for k-gram MLP
 NUM_INNER_LAYERS=1              # Number of (Linear->SiLU) blocks for k-gram MLP
-EMBEDDING_TYPE="full"           # Type of input representation for k-gram MLP: full, scaled, onehot
+EMBEDDING_TYPE="scaled"           # Type of input representation for k-gram MLP: full, scaled, onehot
 
 # Training configuration
 
@@ -62,7 +64,7 @@ WARMUP_RATIO=0.1                # Ratio of warmup steps to total training steps
 
 LOG_INTERVAL_STEPS=250              # Log training loss every N steps
 SAVE_INTERVAL_STEPS=5625            # Save model checkpoint every N steps
-SAVE_DIR="./saved_models/lstm"      # Directory to save checkpoints
+SAVE_DIR="./saved_models/kgram-pico-K1-L1-scaled"      # Directory to save checkpoints
 SAVE_LATEST=true                    # Overwrite latest checkpoint instead of saving per step
 SAVE_BEST=true                      # Track and save best model based on training loss
 LOSS_METRIC_FOR_BEST_MODEL="val"    # Metric to use for best model: train, val
@@ -82,12 +84,12 @@ MONOSEMANTIC_ANALYSIS=true      # If true, run monosemantic analysis
 USE_WANDB=true                  # Enable W&B experiment tracking
 WANDB_ENTITY="pico-llm"         # W&B entity name (leave empty for default)
 WANDB_PROJECT="training"        # W&B project name
-WANDB_NAME="lstm"               # W&B run name (leave empty for auto-generated) -- change this
+WANDB_NAME="kgram-pico-K1-L1-scaled"               # W&B run name (leave empty for auto-generated) -- change this
 
 # Hugging Face Hub Configuration
 
 UPLOAD_MODEL_TO_HUB=true        # Upload model to Hugging Face Hub
-REPO_ID="pico-llm/lstm"         # Hugging Face Hub repository ID
+REPO_ID="pico-llm/kgram-pico-K1-L1-scaled"         # Hugging Face Hub repository ID
 
 # System Configuration
 
@@ -190,9 +192,18 @@ if [ -d "$SAVE_DIR" ]; then
 fi
 
 # Run the training script with pico_llm.sh configurations
-eval $CMD
 
-# Deactivate the environment
-deactivate
+# Export CMD so the inner shell can see it
+export CMD
+
+# Run the training script inside Singularity with the configured environment
+singularity exec $nv --overlay /scratch/aj4332/pico_env/overlay-15GB-500K.ext3:ro \
+  /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif /bin/bash -lc '
+    set -e
+    source /ext3/env.sh
+    cd /scratch/aj4332/pico_env/pico-llm
+    echo "Running command: $CMD"
+    eval "$CMD"
+  '
 
 echo "############### End Log: $(date +%Y-%m-%d_%H:%M:%S) ###############"

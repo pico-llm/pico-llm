@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: pico-llm
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: datasets>=4.3.0
+Requires-Dist: huggingface-hub>=1.0.1
+Requires-Dist: numpy>=2.3.4
+Requires-Dist: safetensors>=0.6.2
+Requires-Dist: tiktoken>=0.12.0
+Requires-Dist: torch>=2.9.0
+Requires-Dist: tqdm>=4.67.1
+Requires-Dist: wandb>=0.22.3
+Provides-Extra: dev
+Requires-Dist: pre-commit>=4.3.0; extra == "dev"
+Requires-Dist: ruff>=0.14.3; extra == "dev"
