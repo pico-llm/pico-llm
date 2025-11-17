@@ -14,6 +14,8 @@ import utils
 
 from .base import BaseTrainer
 
+import os
+
 
 class Trainer(BaseTrainer):
     """Trainer class for language model training."""
@@ -308,6 +310,7 @@ class Trainer(BaseTrainer):
                         self.push_to_hub(
                             repo_id=repo_id,
                             commit_message=f"Training Step {global_step}",
+                            token=os.getenv("HF_TOKEN"),
                         )
 
             # end of epoch logging
@@ -348,6 +351,7 @@ class Trainer(BaseTrainer):
                         self.push_to_hub(
                             repo_id=repo_id,
                             commit_message=f"Best model at Step {global_step}",
+                            token=os.getenv("HF_TOKEN"),
                         )
 
         # final model save
@@ -356,6 +360,7 @@ class Trainer(BaseTrainer):
             self.push_to_hub(
                 repo_id=repo_id,
                 commit_message=f"Final model at Step {global_step}",
+                token=os.getenv("HF_TOKEN"),
             )
 
         # evaluate on test set if provided
