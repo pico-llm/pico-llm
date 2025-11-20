@@ -4,6 +4,7 @@
 __pycache__/
 .vscode/
 *.pt
+*.log
 saved_models/
 wandb/
 logs/
