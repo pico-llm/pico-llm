@@ -164,10 +164,7 @@ if __name__ == "__main__":
             # generate samples for each prompt
             for prompt_text in prompts:
                 # create a dictionary to hold samples for this prompt
-                prompt_samples = {
-                    "prompt_text": prompt_text,
-                    "completions": dict()
-                }
+                prompt_samples = {"prompt_text": prompt_text, "completions": dict()}
                 # greedy sampling
                 generated_text_greedy, generated_annotated_greedy = utils.generate(
                     model=model,
@@ -218,4 +215,3 @@ if __name__ == "__main__":
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(samples, f, indent=4, ensure_ascii=False)
     print(f"Saved sampled sentences to {args.output}")
-
