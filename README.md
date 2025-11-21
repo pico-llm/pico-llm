@@ -1,6 +1,6 @@
 # picoLLM
 
-A small, educational repository for training and sampling from tiny language models  as part of the [CSCI-GA 2565 Machine Learning](https://cs.nyu.edu/courses/fall25/CSCI-GA.2565-001/), Fall 2025 course at NYU. This repository contains dataset utilities, model implementations, training & sampling workflows, and scripts for saving/loading checkpoints and collecting generated outputs.
+An educational repository for training and sampling from tiny language models as part of the [CSCI-GA 2565 Machine Learning](https://cs.nyu.edu/courses/fall25/CSCI-GA.2565-001/), Fall 2025 course at NYU. This repository contains dataset utilities, model implementations, training & sampling workflows, and scripts for saving/loading checkpoints and collecting generated outputs.
 
 ## Table of contents
 
